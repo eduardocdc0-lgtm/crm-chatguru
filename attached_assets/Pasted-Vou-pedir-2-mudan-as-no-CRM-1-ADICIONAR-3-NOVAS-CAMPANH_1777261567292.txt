@@ -1,0 +1,71 @@
+Vou pedir 2 mudanças no CRM:
+
+═══════════════════════════════════
+1. ADICIONAR 3 NOVAS CAMPANHAS
+═══════════════════════════════════
+
+Adicionar na lógica de identificação de campanha (function 
+identifyCampaign que já existe):
+
+| Campanha | Mensagem-gatilho (lowercase) |
+|---|---|
+| BPC | contém "bpc" OU "loas" |
+| FIBROMIALGIA | contém "fibromialgia" |
+| PINO_PLACA_PARAFUSO | contém "pino" OU "placa" OU "parafuso" |
+
+REGRAS DE PRIORIDADE (ordem importa):
+1. PINO_PLACA_PARAFUSO (mais específico, antes de aux-acidente)
+2. FIBROMIALGIA (antes de aux-doença)
+3. BPC
+4. As regras existentes (LAUDO_SUS_PE, AUX_ACIDENTE, AUX_DOENCA, 
+   PERICIA_NEGADA, LAUDO_SUS_GERAL)
+
+CORES E EMOJIS pra usar no dashboard:
+- BPC → 🔵 Azul (#3B82F6)
+- FIBROMIALGIA → 💗 Rosa (#EC4899)
+- PINO_PLACA_PARAFUSO → 🟡 Amarelo (#EAB308)
+
+Também adicionar essas 3 campanhas:
+- Na lista do funil de leads
+- Na seção "Campanhas" do Dashboard (lista colorida)
+- Como filtro disponível na aba Conversas
+
+DEPOIS DE ADICIONAR: rodar reclassificação retroativa de campanhas 
+(endpoint /api/chatguru/migrate/campaigns com body {"force":true}) 
+pra que leads antigos também peguem as novas categorias.
+
+═══════════════════════════════════
+2. POLIR INTERFACE (mais bonito)
+═══════════════════════════════════
+
+NÃO mude estrutura nem ordem das abas. Mantém TUDO no lugar.
+Apenas refina visual:
+
+- Espaçamentos: aumentar padding interno dos cards (deixar respirar)
+- Sombras: cards com sombra suave (não pesada)
+- Bordas: arredondar mais (rounded-xl em vez de rounded)
+- Cores: ajustar contraste no modo escuro pra ficar menos "cinza chapado"
+- Tipografia: títulos um pouco maiores e com peso semibold
+- Cards de números (Total Hoje, Lead Novo, etc): destacar mais o 
+  número (font maior), label menor
+- Lista de leads recentes: hover suave nos itens
+- Badges de status e campanha: mais redondinhos, com cor de fundo 
+  suave (não saturada)
+- Botões primários: gradiente sutil ou cor sólida com transição
+- Banner de "Atenção necessária": mais elegante, menos estridente
+
+REGRAS:
+- Funcionar igualmente bem em desktop E celular
+- Modo escuro continua sendo o padrão
+- Não quebrar nada que já funciona
+- Não trocar biblioteca de UI
+
+═══════════════════════════════════
+ORDEM DE EXECUÇÃO
+═══════════════════════════════════
+
+1. Campanhas novas (mexe na lógica + reclassifica retroativo)
+2. Polimento visual (mexe só em CSS/componentes)
+
+Antes de cada etapa: me pergunta se pode prosseguir.
+Quando terminar tudo, me avisa pra eu testar.
