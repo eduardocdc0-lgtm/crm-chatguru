@@ -200,11 +200,11 @@ export function Conversations() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Conversas</h1>
-        <p className="text-muted-foreground mt-1">Lista completa de atendimentos.</p>
+        <p className="text-muted-foreground text-sm mt-1">Lista completa de atendimentos.</p>
       </div>
 
-      <Card>
-        <CardHeader className="pb-4">
+      <Card className="shadow-sm">
+        <CardHeader className="pb-4 pt-5 px-5">
           <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

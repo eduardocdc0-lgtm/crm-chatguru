@@ -92,7 +92,7 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={loading || !username || !password}
-              className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className="w-full flex items-center justify-center gap-2 btn-primary-gradient text-primary-foreground rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />

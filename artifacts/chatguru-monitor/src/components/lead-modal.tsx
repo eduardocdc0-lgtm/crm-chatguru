@@ -275,7 +275,7 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
                     <button
                       onClick={saveDisease}
                       disabled={diseaseSaving}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition disabled:opacity-50"
+                      className="text-xs px-3 py-1.5 rounded-xl btn-primary-gradient text-primary-foreground font-medium disabled:opacity-50"
                     >
                       {diseaseSaving ? "Salvando..." : "Salvar doença"}
                     </button>

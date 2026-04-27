@@ -161,13 +161,13 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1 capitalize">{today}</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={exportCsv}
-            className="flex items-center gap-2 border border-border rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+            className="flex items-center gap-2 border border-border rounded-xl px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/60 transition-colors shadow-sm"
           >
             <Download className="h-3.5 w-3.5" />
             Exportar CSV
@@ -175,7 +175,7 @@ export function Dashboard() {
           <button
             onClick={() => refetchStats()}
             disabled={isFetching}
-            className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 btn-primary-gradient text-primary-foreground rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
             Atualizar
@@ -193,17 +193,23 @@ export function Dashboard() {
 
       {/* Alert banner */}
       {(alertCounts.urgent > 0 || alertCounts.cooling > 0) && (
-        <a href="/alerts" className="flex items-center gap-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors group">
-          <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+        <a
+          href="/alerts"
+          className="group flex items-center gap-4 rounded-xl border border-red-200/80 dark:border-red-800/50 bg-gradient-to-r from-red-50 to-orange-50/60 dark:from-red-950/40 dark:to-red-900/20 px-5 py-3.5 hover:from-red-100 hover:to-orange-100/60 dark:hover:from-red-950/60 dark:hover:to-red-900/30 transition-all duration-200 shadow-sm"
+          style={{ textDecoration: "none" }}
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/40 flex-shrink-0">
+            <AlertTriangle className="h-5 w-5 text-red-500 dark:text-red-400" />
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">Atenção necessária</p>
-            <p className="text-xs text-red-600 dark:text-red-500">
-              {alertCounts.urgent > 0 && <><Flame className="inline w-3 h-3 mr-1" />{alertCounts.urgent} urgente{alertCounts.urgent !== 1 ? "s" : ""}</>}
-              {alertCounts.urgent > 0 && alertCounts.cooling > 0 && " • "}
+            <p className="text-sm font-semibold text-red-800 dark:text-red-300">Atenção necessária</p>
+            <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
+              {alertCounts.urgent > 0 && <><Flame className="inline w-3 h-3 mr-0.5" />{alertCounts.urgent} urgente{alertCounts.urgent !== 1 ? "s" : ""}</>}
+              {alertCounts.urgent > 0 && alertCounts.cooling > 0 && <span className="mx-1.5 opacity-40">·</span>}
               {alertCounts.cooling > 0 && <>{alertCounts.cooling} esfriando</>}
             </p>
           </div>
-          <span className="text-xs text-red-500 group-hover:underline">Ver alertas →</span>
+          <span className="text-xs font-medium text-red-600 dark:text-red-400 group-hover:translate-x-0.5 transition-transform">Ver →</span>
         </a>
       )}
 
@@ -211,15 +217,15 @@ export function Dashboard() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {statsLoading
           ? Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl border p-4 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-8 w-12" /></div>
+              <div key={i} className="rounded-xl border p-5 space-y-2 shadow-sm"><Skeleton className="h-3 w-20" /><Skeleton className="h-8 w-12" /></div>
             ))
           : statCards.map((c) => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 12, padding: "14px 16px" }}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-medium text-muted-foreground">{c.label}</span>
-                  <span className="text-lg">{c.icon}</span>
+              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+                <div className="flex justify-between items-start mb-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground leading-tight">{c.label}</span>
+                  <span className="text-xl leading-none">{c.icon}</span>
                 </div>
-                <div style={{ fontSize: 28, fontWeight: 700, color: c.valColor, lineHeight: 1 }}>{c.value}</div>
+                <div style={{ fontSize: 32, fontWeight: 800, color: c.valColor, lineHeight: 1, letterSpacing: "-0.02em" }}>{c.value}</div>
               </div>
             ))}
       </div>
@@ -227,8 +233,8 @@ export function Dashboard() {
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Funil + Webhook */}
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
-          <h2 className="text-sm font-semibold">Funil de Leads</h2>
+        <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
+          <h2 className="text-sm font-semibold tracking-wide">Funil de Leads</h2>
           {statsLoading ? (
             <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}</div>
           ) : (
@@ -279,9 +285,9 @@ export function Dashboard() {
         </div>
 
         {/* Leads Recentes */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5">
+        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-semibold">Leads Recentes</h2>
+            <h2 className="text-sm font-semibold tracking-wide">Leads Recentes</h2>
             <a href="/conversations" className="text-xs text-primary hover:underline">Ver todos →</a>
           </div>
 

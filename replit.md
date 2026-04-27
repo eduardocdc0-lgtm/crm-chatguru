@@ -36,7 +36,7 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 
 ## Database Schema
 
-- **conversations** — leads/conversations from WhatsApp (chatNumber, status, assignedAgent, agentId, whatsappNumberId, campaign, firstMessage, notes, coolingAlert, coolingAlertAt)
+- **conversations** — leads/conversations from WhatsApp (chatNumber, status, assignedAgent, agentId, whatsappNumberId, campaign, firstMessage, notes, disease, diseaseNote, coolingAlert, coolingAlertAt)
 - **agents** — atendentes (Thiago Tavares, Tammyres = Comercial; Letícia, Marília, Alice, Cau = Atendimento)
 - **whatsapp_numbers** — números WhatsApp (Comercial 81918506470, Base 81993045260)
 - **tags** — classificação de leads em 5 categorias (ORIGEM, SETOR, STATUS, CASO, MOTIVO_DESCARTE)
