@@ -6,7 +6,6 @@ import { formatPhone } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { CampaignTag } from "@/lib/campaignColors";
 import { LeadModal } from "@/components/lead-modal";
-import { MessagePreview } from "@/components/message-preview";
 import { SendTemplateButton } from "@/components/send-template-button";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -156,9 +155,6 @@ function AlertCard({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) 
           </button>
         </div>
       </div>
-
-      {/* Message preview — lazy loaded */}
-      <MessagePreview chatNumber={alert.chatNumber} maxMessages={3} />
 
       {/* Actions */}
       <div className="mt-2.5 flex items-center gap-2 flex-wrap">

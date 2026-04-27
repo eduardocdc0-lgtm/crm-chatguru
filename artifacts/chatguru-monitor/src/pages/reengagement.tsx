@@ -1,12 +1,10 @@
 import React, { useState, useMemo } from "react";
 import { useListConversations, getListConversationsQueryKey } from "@workspace/api-client-react";
-import { formatPhone, formatDate } from "@/lib/utils";
-import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
+import { formatPhone } from "@/lib/utils";
+import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { MessagePreview } from "@/components/message-preview";
-import { SendTemplateButton } from "@/components/send-template-button";
 
 type SendStatus = "idle" | "sending" | "ok" | "error";
 
@@ -280,73 +278,47 @@ function ReengagementRow({ lead, isSelected, onToggle }: {
   isSelected: boolean;
   onToggle: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const name = lead.contactName || formatPhone(lead.chatNumber);
 
   return (
-    <div className={`border-b border-border transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/20"} ${lead.sendStatus !== "idle" ? "opacity-70" : ""}`}>
-      {/* Main row */}
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-        onClick={() => lead.sendStatus === "idle" && onToggle()}
-      >
-        {/* Checkbox / Status */}
-        <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
-          {lead.sendStatus === "sending" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-          {lead.sendStatus === "ok" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-          {lead.sendStatus === "error" && <XCircle className="h-4 w-4 text-red-500" />}
-          {lead.sendStatus === "idle" && (
-            isSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-muted-foreground" />
-          )}
-        </div>
+    <div
+      className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/20"} ${lead.sendStatus !== "idle" ? "opacity-70" : ""}`}
+      onClick={() => lead.sendStatus === "idle" && onToggle()}
+    >
+      {/* Checkbox / Status */}
+      <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
+        {lead.sendStatus === "sending" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+        {lead.sendStatus === "ok" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+        {lead.sendStatus === "error" && <XCircle className="h-4 w-4 text-red-500" />}
+        {lead.sendStatus === "idle" && (
+          isSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
 
-        {/* Avatar */}
-        <div style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(name), display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
-          {getInitials(name)}
-        </div>
+      {/* Avatar */}
+      <div style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(name), display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
+        {getInitials(name)}
+      </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm">{name}</span>
-            {lead.sendStatus === "error" && <span className="text-xs text-red-500">{lead.errorMsg}</span>}
-          </div>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="text-xs text-muted-foreground">{formatPhone(lead.chatNumber)}</span>
-            {lead.assignedAgent && <span className="text-xs text-muted-foreground">• {lead.assignedAgent}</span>}
-          </div>
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-sm">{name}</span>
+          {lead.sendStatus === "error" && <span className="text-xs text-red-500">{lead.errorMsg}</span>}
         </div>
-
-        {/* Time + expand */}
-        <div className="flex-shrink-0 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {hoursAgo(lead.lastMessageAt || lead.updatedAt)}
-          </span>
-          <button
-            onClick={e => { e.stopPropagation(); setExpanded(v => !v); }}
-            className="p-1 rounded text-muted-foreground hover:text-primary transition-colors"
-            title="Ver mensagens"
-          >
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-          </button>
+        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+          <span className="text-xs text-muted-foreground">{formatPhone(lead.chatNumber)}</span>
+          {lead.assignedAgent && <span className="text-xs text-muted-foreground">• {lead.assignedAgent}</span>}
         </div>
       </div>
 
-      {/* Expandable: preview + send */}
-      {expanded && (
-        <div className="px-4 pb-3 space-y-2">
-          <MessagePreview chatNumber={lead.chatNumber} maxMessages={3} />
-          <div className="flex items-center gap-2 mt-1">
-            <SendTemplateButton
-              chatNumber={lead.chatNumber}
-              contactName={lead.contactName}
-              campaign={undefined}
-              size="sm"
-            />
-          </div>
-        </div>
-      )}
+      {/* Time */}
+      <div className="flex-shrink-0">
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {hoursAgo(lead.lastMessageAt || lead.updatedAt)}
+        </span>
+      </div>
     </div>
   );
 }
