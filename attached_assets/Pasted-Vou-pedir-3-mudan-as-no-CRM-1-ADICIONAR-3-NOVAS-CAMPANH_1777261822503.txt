@@ -1,0 +1,125 @@
+Vou pedir 3 mudanças no CRM:
+
+═══════════════════════════════════
+1. ADICIONAR 3 NOVAS CAMPANHAS
+═══════════════════════════════════
+
+Adicionar na lógica de identificação de campanha (function 
+identifyCampaign que já existe):
+
+| Campanha | Mensagem-gatilho (lowercase) |
+|---|---|
+| BPC | contém "bpc" OU "loas" |
+| FIBROMIALGIA | contém "fibromialgia" |
+| PINO_PLACA_PARAFUSO | contém "pino" OU "placa" OU "parafuso" |
+
+PRIORIDADE (ordem importa):
+1. PINO_PLACA_PARAFUSO (mais específico, antes de aux-acidente)
+2. FIBROMIALGIA (antes de aux-doença)
+3. BPC
+4. As regras existentes (LAUDO_SUS_PE, AUX_ACIDENTE, AUX_DOENCA, 
+   PERICIA_NEGADA, LAUDO_SUS_GERAL)
+
+CORES:
+- BPC → 🔵 Azul (#3B82F6)
+- FIBROMIALGIA → 💗 Rosa (#EC4899)
+- PINO_PLACA_PARAFUSO → 🟡 Amarelo (#EAB308)
+
+Adicionar no funil, no card "Campanhas" do Dashboard, e como filtro 
+na aba Conversas.
+
+DEPOIS DE ADICIONAR: rodar reclassificação retroativa
+(POST /api/chatguru/migrate/campaigns body {"force":true})
+
+═══════════════════════════════════
+2. ADICIONAR CAMPO "DOENÇA" NO CRM
+═══════════════════════════════════
+
+Criar nova coluna no schema da tabela conversations:
+- disease: text (nullable)
+
+Lista FECHADA de 13 opções:
+
+CID F:
+- TDAH
+- TEA (Autismo)
+- Depressão/Ansiedade
+- Esquizofrenia/Bipolar
+
+Ortopédicas:
+- Hérnia de Disco / Lombalgia
+- Pino/Placa/Parafuso
+- Lesão de Ombro / LER
+
+Reumatológicas:
+- Fibromialgia
+- Artrose / Artrite
+
+Outras frequentes:
+- Câncer
+- Cardiopatia
+- AVC / Sequelas neurológicas
+
+Genérica:
+- Outra (campo livre adicional aparece se selecionar)
+
+DETECÇÃO AUTOMÁTICA (palavras-chave na 1ª msg ou nas 5 primeiras 
+mensagens do lead, lowercase):
+- "fibromialgia", "fibro" → FIBROMIALGIA
+- "tdah", "déficit de atenção", "deficit de atencao", "hiperativ" → TDAH
+- "tea", "autismo", "autista", "espectro" → TEA
+- "depressão", "depressao", "ansiedade", "transtorno de ansiedade" → DEPRESSAO_ANSIEDADE
+- "esquizofren", "bipolar", "transtorno bipolar" → ESQUIZOFRENIA_BIPOLAR
+- "hérnia", "hernia", "lombar", "coluna", "disco" → HERNIA_LOMBALGIA
+- "pino", "placa", "parafuso" → PINO_PLACA_PARAFUSO
+- "ombro", "manguito", "rotador", "ler", "tendinite" → OMBRO_LER
+- "artrose", "artrite", "reumatoide" → ARTROSE_ARTRITE
+- "câncer", "cancer", "tumor", "neoplasia" → CANCER
+- "coração", "coracao", "cardiopatia", "infarto", "miocárdio" → CARDIOPATIA
+- "avc", "derrame", "sequela neurológica" → AVC
+
+Se não bater nenhuma → null (Thiago/Tammyres preenchem manualmente).
+
+UI:
+- Adicionar filtro "Doença" na aba Conversas (multi-select com as 13)
+- Mostrar a doença como badge na ficha do lead
+- Adicionar gráfico "Top doenças" no Dashboard (pizza com top 8)
+- Permitir Thiago/Tammyres editarem manualmente a doença na ficha 
+  do lead (selecionar da lista ou marcar "Outra" + texto livre)
+
+DEPOIS: rodar detecção retroativa em todos os leads existentes.
+
+═══════════════════════════════════
+3. POLIR INTERFACE (mais bonito)
+═══════════════════════════════════
+
+NÃO mude estrutura nem ordem das abas. Apenas refina visual:
+
+- Padding interno dos cards: aumentar (deixar respirar)
+- Sombras: cards com sombra suave (não pesada)
+- Bordas: rounded-xl em vez de rounded
+- Modo escuro: ajustar contraste pra ficar menos "cinza chapado"
+- Tipografia: títulos maiores, peso semibold
+- Cards de números (Total Hoje, Lead Novo, etc): número grande, label 
+  pequeno
+- Lista de leads recentes: hover suave nos itens
+- Badges (status, campanha, doença): redondinhos, fundo suave
+- Botões primários: gradiente sutil ou cor sólida com transição
+- Banner "Atenção necessária": mais elegante, menos estridente
+
+REGRAS:
+- Funcionar em desktop E celular
+- Modo escuro continua padrão
+- Não quebrar nada
+- Não trocar biblioteca de UI
+
+═══════════════════════════════════
+ORDEM DE EXECUÇÃO
+═══════════════════════════════════
+
+1. Campanhas novas (mexe na lógica + reclassifica retroativo)
+2. Campo Doença (novo schema + detecção + retroativo + UI)
+3. Polimento visual
+
+Antes de cada etapa: me pergunta se pode prosseguir.
+Quando terminar tudo, me avisa pra eu testar.

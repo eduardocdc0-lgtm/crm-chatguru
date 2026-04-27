@@ -233,7 +233,7 @@ export function Dashboard() {
             <div className="pt-3 border-t border-border">
               <p className="text-xs font-medium text-muted-foreground mb-2">Campanhas</p>
               <div className="space-y-1">
-                {["LAUDO_SUS_PE","LAUDO_SUS_GERAL","AUX_DOENCA","AUX_ACIDENTE","PERICIA_NEGADA","INDEFINIDA"].map(k => {
+                {["LAUDO_SUS_PE","LAUDO_SUS_GERAL","AUX_DOENCA","AUX_ACIDENTE","PERICIA_NEGADA","BPC","FIBROMIALGIA","PINO_PLACA_PARAFUSO","INDEFINIDA"].map(k => {
                   const m = getCampaign(k);
                   return (
                     <div key={k} className="flex items-center gap-2">

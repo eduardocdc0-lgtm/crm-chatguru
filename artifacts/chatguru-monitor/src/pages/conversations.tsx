@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CAMPAIGN_MAP } from "@/lib/campaignColors";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { StatusBadge } from "@/components/status-badge";
@@ -84,21 +85,28 @@ function ContextDataPopover({ data }: { data: Record<string, unknown> }) {
 export function Conversations() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<ListConversationsStatus | "all">("all");
+  const [campaign, setCampaign] = useState<string>("all");
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const debouncedSearch = useDebounce(search, 500);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isFetching } = useListConversations({
-    query: {
-      queryKey: getListConversationsQueryKey({
-        search: debouncedSearch || undefined,
-        status: status === "all" ? undefined : status as ListConversationsStatus,
-        limit: 50
-      }),
-      keepPreviousData: true,
-      refetchInterval: 60_000,
+  const params = {
+    search: debouncedSearch || undefined,
+    status: status === "all" ? undefined : status as ListConversationsStatus,
+    campaign: campaign === "all" ? undefined : campaign,
+    limit: 50,
+  };
+
+  const { data, isLoading, isFetching } = useListConversations(
+    params as any,
+    {
+      query: {
+        queryKey: getListConversationsQueryKey(params as any),
+        keepPreviousData: true,
+        refetchInterval: 60_000,
+      },
     }
-  });
+  );
 
   const { mutate: deleteConv } = useDeleteConversation({
     mutation: {
@@ -123,8 +131,8 @@ export function Conversations() {
 
       <Card>
         <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por número ou nome..."
@@ -133,7 +141,7 @@ export function Conversations() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="w-full sm:w-64">
+            <div className="w-full sm:w-48">
               <Select value={status} onValueChange={(val: any) => setStatus(val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Filtrar por status" />
@@ -145,6 +153,21 @@ export function Conversations() {
                   <SelectItem value="waiting">Aguardando</SelectItem>
                   <SelectItem value="resolved">Resolvido</SelectItem>
                   <SelectItem value="closed">Fechado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-52">
+              <Select value={campaign} onValueChange={setCampaign}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filtrar por campanha" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Campanhas</SelectItem>
+                  {Object.entries(CAMPAIGN_MAP).map(([key, meta]) => (
+                    <SelectItem key={key} value={key}>
+                      {meta.emoji} {meta.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
