@@ -370,13 +370,15 @@ router.get("/stats", async (req: Request, res: Response) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const [statusCounts, [{ todayTotal }], recentActivity] = await Promise.all([
+  const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts] = await Promise.all([
     db.select({ status: conversationsTable.status, count: count() })
       .from(conversationsTable).groupBy(conversationsTable.status),
     db.select({ todayTotal: count() })
       .from(conversationsTable).where(gte(conversationsTable.createdAt, today)),
     db.select().from(conversationsTable)
       .orderBy(desc(conversationsTable.updatedAt)).limit(10),
+    db.select({ campaign: conversationsTable.campaign, count: count() })
+      .from(conversationsTable).groupBy(conversationsTable.campaign),
   ]);
 
   // Pipeline completo com todos os status possíveis
@@ -395,11 +397,19 @@ router.get("/stats", async (req: Request, res: Response) => {
     else if (key === "lead_novo" || row.status === "open" || row.status === "unknown") pipeline.lead_novo += n;
   }
 
+  // Contagem por campanha
+  const byCampaign: Record<string, number> = {};
+  for (const row of campaignCounts) {
+    const key = row.campaign ?? "INDEFINIDA";
+    byCampaign[key] = (byCampaign[key] ?? 0) + Number(row.count);
+  }
+
   // Campos legados mantidos para compatibilidade com frontend antigo
   res.json({
     total,
     todayTotal: Number(todayTotal),
     pipeline,
+    byCampaign,
     // legado
     open: pipeline.lead_novo,
     inProgress: pipeline.em_atendimento,

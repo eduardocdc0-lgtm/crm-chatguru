@@ -254,20 +254,23 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* Legenda de campanhas */}
-          {!statsLoading && (
+          {/* Legenda de campanhas com contagem */}
+          {!statsLoading && stats?.byCampaign && (
             <div className="pt-3 border-t border-border">
               <p className="text-xs font-medium text-muted-foreground mb-2">Campanhas</p>
-              <div className="space-y-1">
-                {["LAUDO_SUS_PE","LAUDO_SUS_GERAL","AUX_DOENCA","AUX_ACIDENTE","PERICIA_NEGADA","BPC","FIBROMIALGIA","PINO_PLACA_PARAFUSO","INDEFINIDA"].map(k => {
-                  const m = getCampaign(k);
-                  return (
-                    <div key={k} className="flex items-center gap-2">
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
-                      <span className="text-xs text-muted-foreground">{m.label}</span>
-                    </div>
-                  );
-                })}
+              <div className="space-y-1.5">
+                {Object.entries((stats as any).byCampaign as Record<string, number>)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([k, cnt]) => {
+                    const m = getCampaign(k);
+                    return (
+                      <div key={k} className="flex items-center gap-2">
+                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
+                        <span className="text-xs text-muted-foreground flex-1 truncate">{m.emoji} {m.label}</span>
+                        <span className="text-xs font-bold tabular-nums" style={{ color: m.color }}>{cnt}</span>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
