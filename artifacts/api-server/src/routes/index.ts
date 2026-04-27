@@ -7,6 +7,7 @@ import tagsRouter from "./tags";
 import conversationsExtraRouter from "./conversations-extra";
 import summariesRouter from "./summaries";
 import campaignsRouter from "./campaigns";
+import metaAdsRouter from "./meta-ads";
 import auditRouter from "./audit";
 import authRouter from "./auth";
 import messagesRouter from "./messages";
@@ -29,6 +30,7 @@ router.use("/conversations", conversationsExtraRouter);
 router.use("/conversations", messagesRouter);
 router.use("/summaries", summariesRouter);
 router.use("/campaigns", campaignsRouter);
+router.use("/meta-ads", metaAdsRouter);
 router.use("/audit", auditRouter);
 
 export default router;
