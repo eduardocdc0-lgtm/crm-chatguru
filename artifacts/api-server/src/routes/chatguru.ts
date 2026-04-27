@@ -8,6 +8,7 @@ import {
 } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
 import { identifyCampaign } from "../lib/campaign";
+import { detectDisease } from "../lib/disease";
 
 const router = Router();
 
@@ -203,6 +204,8 @@ router.post("/webhook", async (req: Request, res: Response) => {
       // Status inicial: lead_qualificado se já vier com agente humano, senão lead_novo
       const initialStatus = finalAgentId ? "lead_qualificado" : "lead_novo";
 
+      const disease = detectDisease([firstMsg]);
+
       await db.insert(conversationsTable).values({
         chatNumber: String(chatNumber),
         contactName: contactName ?? null,
@@ -215,6 +218,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
         whatsappNumberId,
         firstMessage: firstMsg,
         campaign,
+        disease,
       });
 
       req.log.info({ chatNumber, campaign, agentId: finalAgentId, agentName: finalAgentName, status: initialStatus }, "New lead created");
@@ -327,10 +331,20 @@ router.post("/migrate/agents", async (req: Request, res: Response) => {
 
 router.get("/conversations", async (req: Request, res: Response) => {
   const parsed = ListConversationsQueryParams.safeParse(req.query);
-  const { status, search, limit = 50, offset = 0 } = parsed.success ? parsed.data : { status: undefined, search: undefined, limit: 50, offset: 0 };
+  const { status, search, campaign, disease, limit = 50, offset = 0 } = parsed.success ? parsed.data : { status: undefined, search: undefined, campaign: undefined, disease: undefined, limit: 50, offset: 0 };
 
   const conditions = [];
   if (status) conditions.push(eq(conversationsTable.status, status));
+  if (campaign) conditions.push(eq(conversationsTable.campaign, campaign));
+  if (disease) {
+    // Support comma-separated list for multi-select
+    const diseases = disease.split(",").map(d => d.trim()).filter(Boolean);
+    if (diseases.length === 1) {
+      conditions.push(eq(conversationsTable.disease, diseases[0]));
+    } else if (diseases.length > 1) {
+      conditions.push(or(...diseases.map(d => eq(conversationsTable.disease, d)))!);
+    }
+  }
   if (search) {
     conditions.push(
       sql`(${conversationsTable.chatNumber} ILIKE ${"%" + search + "%"} OR ${conversationsTable.contactName} ILIKE ${"%" + search + "%"})`

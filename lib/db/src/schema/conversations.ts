@@ -20,6 +20,8 @@ export const conversationsTable = pgTable("conversations", {
   firstMessage: text("first_message"),
   discardReason: text("discard_reason"),
   notes: text("notes"), // anotações livres
+  disease: text("disease"), // CID / condição: FIBROMIALGIA, TDAH, etc.
+  diseaseNote: text("disease_note"), // texto livre quando disease = "OUTRA"
   coolingAlert: text("cooling_alert"), // null | "esfriando" | "urgente"
   coolingAlertAt: timestamp("cooling_alert_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

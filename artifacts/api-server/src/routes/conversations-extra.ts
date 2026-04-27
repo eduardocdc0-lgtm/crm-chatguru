@@ -1,7 +1,8 @@
 import { Router, Request, Response } from "express";
 import { db, conversationsTable, statusHistoryTable, tagsTable, conversationTagsTable } from "@workspace/db";
-import { eq, ilike, or, and, lt, isNotNull, desc, sql, isNull } from "drizzle-orm";
+import { eq, ilike, or, and, lt, isNotNull, desc, sql, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { detectDisease } from "../lib/disease";
 
 const router = Router();
 
@@ -110,6 +111,38 @@ router.get("/export", async (req: Request, res: Response) => {
   res.send("\uFEFF" + csvLines);
 });
 
+// ─── DISEASE STATS ───────────────────────────────────────────────────────────
+router.get("/disease/stats", async (_req: Request, res: Response) => {
+  const rows = await db
+    .select({ disease: conversationsTable.disease, count: sql<number>`count(*)::int` })
+    .from(conversationsTable)
+    .where(isNotNull(conversationsTable.disease))
+    .groupBy(conversationsTable.disease)
+    .orderBy(desc(sql`count(*)`))
+    .limit(12);
+  res.json({ stats: rows });
+});
+
+// ─── DISEASE RETROACTIVE DETECTION ───────────────────────────────────────────
+router.post("/disease/detect", async (_req: Request, res: Response) => {
+  const rows = await db
+    .select({ id: conversationsTable.id, firstMessage: conversationsTable.firstMessage, lastMessage: conversationsTable.lastMessage })
+    .from(conversationsTable)
+    .where(isNull(conversationsTable.disease));
+
+  let updated = 0;
+  for (const row of rows) {
+    const disease = detectDisease([row.firstMessage, row.lastMessage]);
+    if (disease) {
+      await db.update(conversationsTable)
+        .set({ disease, updatedAt: new Date() })
+        .where(eq(conversationsTable.id, row.id));
+      updated++;
+    }
+  }
+  res.json({ ok: true, checked: rows.length, updated });
+});
+
 // ─── NOTES + STATUS PATCH ────────────────────────────────────────────────────
 router.patch("/:id", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
@@ -122,6 +155,8 @@ router.patch("/:id", async (req: Request, res: Response) => {
     agentId: z.number().optional().nullable(),
     discardReason: z.string().optional().nullable(),
     campaign: z.string().optional().nullable(),
+    disease: z.string().optional().nullable(),
+    diseaseNote: z.string().max(200).optional().nullable(),
   }).safeParse(req.body);
 
   if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.message }); return; }

@@ -47,6 +47,8 @@ export const ListConversationsQueryParams = zod.object({
     .enum(["open", "in_progress", "waiting", "resolved", "closed"])
     .optional(),
   search: zod.coerce.string().optional(),
+  campaign: zod.string().optional(),
+  disease: zod.string().optional(),
   limit: zod.coerce.number().default(listConversationsQueryLimitDefault),
   offset: zod.coerce.number().default(listConversationsQueryOffsetDefault),
 });

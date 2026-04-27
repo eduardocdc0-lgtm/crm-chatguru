@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useDebounce } from "@/hooks/use-debounce";
+import { DISEASE_LABELS, DISEASE_OPTIONS, getDiseaseColor } from "@/lib/diseaseUtils";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const CHATGURU_WEB = "https://app.zap.guru";
@@ -28,6 +29,8 @@ interface ConvDetail {
   firstMessage?: string | null;
   lastMessage?: string | null;
   notes?: string | null;
+  disease?: string | null;
+  diseaseNote?: string | null;
   createdAt: string;
   updatedAt: string;
   lastMessageAt?: string | null;
@@ -73,6 +76,11 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [loading, setLoading] = useState(false);
 
+  // Disease editing state
+  const [diseaseSelect, setDiseaseSelect] = useState<string>("");
+  const [diseaseNote, setDiseaseNote] = useState<string>("");
+  const [diseaseSaving, setDiseaseSaving] = useState(false);
+
   const debouncedNotes = useDebounce(notes, 1500);
 
   const load = useCallback(async () => {
@@ -84,6 +92,8 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
       setConv(d.conversation);
       setHistory(d.history ?? []);
       setNotes(d.conversation?.notes ?? "");
+      setDiseaseSelect(d.conversation?.disease ?? "");
+      setDiseaseNote(d.conversation?.diseaseNote ?? "");
     } finally {
       setLoading(false);
     }
@@ -91,7 +101,7 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
 
   useEffect(() => {
     if (leadId) load();
-    else { setConv(null); setHistory([]); setNotes(""); }
+    else { setConv(null); setHistory([]); setNotes(""); setDiseaseSelect(""); setDiseaseNote(""); }
   }, [leadId, load]);
 
   // Auto-save notes
@@ -109,10 +119,28 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
     }).catch(() => setSaveState("idle"));
   }, [debouncedNotes, leadId, conv]);
 
+  const saveDisease = async () => {
+    if (!leadId) return;
+    setDiseaseSaving(true);
+    await fetch(`${BASE_URL}/api/conversations/${leadId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        disease: diseaseSelect || null,
+        diseaseNote: diseaseSelect === "OUTRA" ? diseaseNote : null,
+      }),
+    });
+    setDiseaseSaving(false);
+    load();
+  };
+
   if (!leadId) return null;
 
   const name = conv?.contactName || (conv ? formatPhone(conv.chatNumber) : "");
   const meta = getCampaign(conv?.campaign);
+
+  const diseaseColor = conv?.disease ? getDiseaseColor(conv.disease) : null;
+  const diseaseLabel = conv?.disease ? (DISEASE_LABELS[conv.disease] ?? conv.disease) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -135,6 +163,14 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
                 {conv.coolingAlert && (
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${conv.coolingAlert === "urgente" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"}`}>
                     {conv.coolingAlert === "urgente" ? "🚨 URGENTE" : "🥶 Esfriando"}
+                  </span>
+                )}
+                {diseaseLabel && diseaseColor && (
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-medium border"
+                    style={{ background: diseaseColor.bg, color: diseaseColor.text, borderColor: diseaseColor.border }}
+                  >
+                    {diseaseLabel}{conv.disease === "OUTRA" && conv.diseaseNote ? `: ${conv.diseaseNote}` : ""}
                   </span>
                 )}
               </div>
@@ -211,6 +247,50 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
                 </div>
               </div>
 
+              {/* Campo Doença */}
+              <div className="bg-muted/30 rounded-xl p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Doença / Condição</p>
+                <div className="flex flex-col gap-2">
+                  <select
+                    value={diseaseSelect}
+                    onChange={e => setDiseaseSelect(e.target.value)}
+                    className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
+                  >
+                    <option value="">— Não identificada —</option>
+                    {DISEASE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  {diseaseSelect === "OUTRA" && (
+                    <input
+                      type="text"
+                      value={diseaseNote}
+                      onChange={e => setDiseaseNote(e.target.value)}
+                      placeholder="Descreva a condição..."
+                      maxLength={200}
+                      className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={saveDisease}
+                      disabled={diseaseSaving}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition disabled:opacity-50"
+                    >
+                      {diseaseSaving ? "Salvando..." : "Salvar doença"}
+                    </button>
+                    {diseaseSelect && (
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full border font-medium"
+                        style={(() => { const c = getDiseaseColor(diseaseSelect); return { background: c.bg, color: c.text, borderColor: c.border }; })()}
+                      >
+                        {DISEASE_LABELS[diseaseSelect] ?? diseaseSelect}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Primeira mensagem */}
               {conv.firstMessage && (
                 <div className="bg-muted/30 rounded-xl p-4">
@@ -248,7 +328,7 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Histórico de Status</p>
                   <div className="relative pl-4">
                     <div className="absolute left-1.5 top-0 bottom-0 w-px bg-border" />
-                    {history.map((h, i) => (
+                    {history.map((h) => (
                       <div key={h.id} className="relative flex items-start gap-3 mb-4 last:mb-0">
                         <div style={{ width: 10, height: 10, borderRadius: "50%", background: STATUS_COLORS[h.toStatus] ?? "#64748b", border: "2px solid var(--background)", flexShrink: 0, marginTop: 4, marginLeft: -1 }} />
                         <div className="flex-1 min-w-0">

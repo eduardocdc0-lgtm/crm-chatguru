@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getCampaign, CampaignTag } from "@/lib/campaignColors";
 import { timeAgo, silenceLevel } from "@/lib/time";
 import { LeadModal } from "@/components/lead-modal";
+import { getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -82,11 +83,29 @@ function useLatestSummary() {
   return summary;
 }
 
+function useDiseaseStats() {
+  const [stats, setStats] = React.useState<{ disease: string | null; count: number }[]>([]);
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${BASE_URL}/api/conversations/disease/stats`);
+        const d = await r.json();
+        setStats(d.stats ?? []);
+      } catch {}
+    };
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+  return stats;
+}
+
 export function Dashboard() {
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<number | null>(null);
   const alertCounts = useAlertCounts();
   const latestSummary = useLatestSummary();
+  const diseaseStats = useDiseaseStats();
 
   const {
     data: stats,
@@ -319,6 +338,42 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Top Doenças */}
+      {diseaseStats.length > 0 && (
+        <div className="bg-card border border-border rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold">Top Doenças</h2>
+            <a href="/conversations" className="text-xs text-primary hover:underline">Filtrar →</a>
+          </div>
+          <div className="space-y-2.5">
+            {diseaseStats.slice(0, 8).map(row => {
+              const key = row.disease ?? "OUTRA";
+              const c = getDiseaseColor(key);
+              const max = diseaseStats[0]?.count ?? 1;
+              const pct = Math.round((row.count / max) * 100);
+              return (
+                <div key={key}>
+                  <div className="flex justify-between mb-1">
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded-full border font-medium"
+                      style={{ background: c.bg, color: c.text, borderColor: c.border }}
+                    >
+                      {getDiseaseLabel(key)}
+                    </span>
+                    <span className="text-xs font-semibold text-muted-foreground">{row.count}</span>
+                  </div>
+                  <div className="bg-muted rounded-full h-2 overflow-hidden">
+                    <div
+                      style={{ height: "100%", width: `${pct}%`, background: c.text, opacity: 0.7, borderRadius: 99, minWidth: 8, transition: "width 0.5s" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Daily Summary card */}
       {latestSummary && (
