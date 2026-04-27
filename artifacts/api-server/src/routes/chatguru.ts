@@ -201,8 +201,9 @@ router.post("/webhook", async (req: Request, res: Response) => {
         }
       }
 
-      // Status inicial: lead_qualificado se já vier com agente humano, senão lead_novo
-      const initialStatus = finalAgentId ? "lead_qualificado" : "lead_novo";
+      // Status inicial: lead_qualificado SOMENTE se o webhook já trouxer agente humano atribuído
+      // Round-robin não conta — agente atribuído internamente não qualifica o lead automaticamente
+      const initialStatus = agentId ? "lead_qualificado" : "lead_novo";
 
       const disease = detectDisease([firstMsg]);
 
