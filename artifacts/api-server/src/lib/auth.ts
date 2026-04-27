@@ -73,9 +73,11 @@ export function validateCredentials(
   password: string
 ): UserRole | null {
   const adminUser = getEnv("ADMIN_USER", "eduardo");
-  const adminPass = getEnv("ADMIN_PASS");
+  // ADMIN_PASSWORD (env var) takes priority over ADMIN_PASS (secret)
+  const adminPass = process.env["ADMIN_PASSWORD"] ?? getEnv("ADMIN_PASS");
   const teamUser = getEnv("TEAM_USER", "equipe");
-  const teamPass = getEnv("TEAM_PASS");
+  // TEAM_PASSWORD (env var) takes priority over TEAM_PASS (secret)
+  const teamPass = process.env["TEAM_PASSWORD"] ?? getEnv("TEAM_PASS");
   if (username === adminUser && password === adminPass) return "admin";
   if (username === teamUser && password === teamPass) return "team";
   return null;
