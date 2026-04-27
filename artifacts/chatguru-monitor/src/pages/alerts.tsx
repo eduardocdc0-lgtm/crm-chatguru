@@ -6,6 +6,8 @@ import { formatPhone } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { CampaignTag } from "@/lib/campaignColors";
 import { LeadModal } from "@/components/lead-modal";
+import { MessagePreview } from "@/components/message-preview";
+import { SendTemplateButton } from "@/components/send-template-button";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const CHATGURU_WEB = "https://app.zap.guru";
@@ -77,7 +79,7 @@ export function Alerts() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-36 w-full" />)}</div>
       ) : (
         <>
           {urgent.length > 0 && (
@@ -85,8 +87,8 @@ export function Alerts() {
               <h2 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-3 flex items-center gap-2">
                 <Flame className="h-4 w-4" /> Urgente ({urgent.length})
               </h2>
-              <div className="space-y-2">
-                {urgent.map(a => <AlertRow key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
+              <div className="space-y-3">
+                {urgent.map(a => <AlertCard key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
               </div>
             </div>
           )}
@@ -96,8 +98,8 @@ export function Alerts() {
               <h2 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-3 flex items-center gap-2">
                 <Clock className="h-4 w-4" /> Esfriando ({cooling.length})
               </h2>
-              <div className="space-y-2">
-                {cooling.map(a => <AlertRow key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
+              <div className="space-y-3">
+                {cooling.map(a => <AlertCard key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
               </div>
             </div>
           )}
@@ -116,31 +118,63 @@ export function Alerts() {
   );
 }
 
-function AlertRow({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) {
+function AlertCard({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) {
   const name = alert.contactName || formatPhone(alert.chatNumber);
+  const phone = alert.chatNumber.replace(/\D/g, "");
+
   return (
-    <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors cursor-pointer" onClick={onOpen}>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-sm">{name}</span>
-          {alert.contactName && <span className="text-xs text-muted-foreground">{formatPhone(alert.chatNumber)}</span>}
+    <div className="p-4 bg-muted/20 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+      {/* Top row: name + time + chatguru */}
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={onOpen}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-sm">{name}</span>
+            {alert.contactName && (
+              <span className="text-xs text-muted-foreground">{formatPhone(alert.chatNumber)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <StatusBadge status={alert.status} />
+            <CampaignTag campaign={alert.campaign} size="xs" />
+            {alert.assignedAgent && (
+              <span className="text-xs text-muted-foreground">• {alert.assignedAgent}</span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <StatusBadge status={alert.status} />
-          <CampaignTag campaign={alert.campaign} size="xs" />
-          {alert.assignedAgent && <span className="text-xs text-muted-foreground">• {alert.assignedAgent}</span>}
+
+        <div className="flex-shrink-0 flex items-center gap-2">
+          <div className="text-right">
+            <p className="text-[10px] text-muted-foreground">última atividade</p>
+            <p className="text-xs font-semibold">{timeAgo(alert.updatedAt)}</p>
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); window.open(`${CHATGURU_WEB}/chats/${phone}`, "_blank"); }}
+            title="Ver no ChatGuru"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-background transition-colors"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-xs text-muted-foreground">última atividade</p>
-        <p className="text-xs font-semibold">{timeAgo(alert.updatedAt)}</p>
+
+      {/* Message preview — lazy loaded */}
+      <MessagePreview chatNumber={alert.chatNumber} maxMessages={3} />
+
+      {/* Actions */}
+      <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+        <SendTemplateButton
+          chatNumber={alert.chatNumber}
+          contactName={alert.contactName}
+          campaign={alert.campaign}
+          size="sm"
+        />
+        <button
+          onClick={onOpen}
+          className="text-xs px-2.5 py-1.5 border border-border rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+        >
+          Ver ficha
+        </button>
       </div>
-      <button
-        onClick={e => { e.stopPropagation(); window.open(`${CHATGURU_WEB}/chats/${alert.chatNumber.replace(/\D/g, "")}`, "_blank"); }}
-        className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-background transition-colors"
-      >
-        <ExternalLink className="w-3.5 h-3.5" />
-      </button>
     </div>
   );
 }

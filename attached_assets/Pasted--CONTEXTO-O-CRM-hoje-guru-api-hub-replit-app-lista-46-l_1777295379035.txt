@@ -1,0 +1,178 @@
+# CONTEXTO
+
+O CRM hoje (guru-api-hub.replit.app) lista 46 leads urgentes na aba **Alertas**, mas **não mostra a mensagem que o lead enviou**. Isso obriga o Eduardo a clicar 46 vezes pra abrir o ChatGuru e descobrir do que se trata cada lead — inviável.
+
+A integração com ChatGuru já existe (endpoint `https://s22.chatguru.app/api/v1`, chave configurada). Vamos usar ela pra duas coisas:
+
+1. **Mostrar preview** das últimas 2-3 mensagens da conversa direto nos cards de lead
+2. **Enviar mensagens prontas** com 1 clique, sem sair do CRM
+
+---
+
+## PARTE 1 — PREVIEW DE MENSAGENS
+
+### 1.1 — Backend: criar endpoint `/api/conversations/:chatNumber/messages`
+
+Criar handler que:
+
+1. Recebe `chatNumber` na URL (ex: `554488562824`)
+2. Chama API do ChatGuru pra buscar o histórico de mensagens dessa conversa
+3. Retorna as **últimas 5 mensagens** (vamos exibir 2-3 mas guardar 5 pra hover)
+4. Cada mensagem com: `texto`, `direção` (lead/equipe), `autor` (nome de quem mandou se for da equipe), `timestamp`
+
+**Resposta esperada:**
+
+```json
+{
+  "chatNumber": "554488562824",
+  "contactName": "Daniel Guedes",
+  "messages": [
+    {
+      "text": "oi, queria saber sobre o laudo do meu pai. ele tem alzheimer e a perícia foi negada",
+      "direction": "incoming",
+      "author": "Daniel Guedes",
+      "timestamp": "2026-04-26T14:32:00Z"
+    },
+    {
+      "text": "Oi Daniel! Que situação difícil 🙏 Me conta...",
+      "direction": "outgoing",
+      "author": "Thiago Tavares",
+      "timestamp": "2026-04-26T14:35:00Z"
+    },
+    {
+      "text": "ele tem 67 anos, mora comigo, eu cuido dele",
+      "direction": "incoming",
+      "author": "Daniel Guedes",
+      "timestamp": "2026-04-26T14:38:00Z"
+    }
+  ]
+}
+```
+
+**Cache:** 2 minutos (mensagens novas chegam rápido, não vale cachear muito).
+
+> **Importante:** se a API do ChatGuru tiver endpoint específico (procurar nos docs), use. Se não, busca via `webhook_events` no banco local — você já tem armazenado.
+
+### 1.2 — Frontend: exibir preview no card de lead
+
+Em **TODOS os lugares onde aparece card de lead** (aba Alertas, Reengajamento, Conversas, Dashboard "Leads Recentes", e na futura aba Auditoria):
+
+Adicionar um bloco entre as tags do lead e o "última atividade":
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Daniel Guedes  554488562824                             │
+│ 🟢 Lead Novo · 🌿 Laudo SUS Geral · Thiago Tavares     │
+│                                                         │
+│ ┌─ Últimas mensagens ──────────────────────────────┐  │
+│ │ 👤 "oi, queria saber sobre o laudo do meu pai..."│  │
+│ │    há 1d                                          │  │
+│ │ 💼 Thiago: "Oi Daniel! Que situação difícil 🙏..."│  │
+│ │    há 1d                                          │  │
+│ │ 👤 "ele tem 67 anos, mora comigo, eu cuido dele"  │  │
+│ │    há 1d                                          │  │
+│ └──────────────────────────────────────────────────┘  │
+│                                                         │
+│ [💬 Enviar mensagem ▼]    [Ver no ChatGuru ↗]          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Regras visuais:**
+- Mensagens do **lead** (incoming) com fundo cinza claro, ícone 👤
+- Mensagens da **equipe** (outgoing) com fundo verde claro, ícone 💼 + nome de quem respondeu
+- Mensagens em ordem cronológica (mais antiga em cima, mais nova embaixo)
+- **Truncar** mensagens com >100 caracteres → adicionar "..." no fim
+- **Hover sobre a mensagem** → tooltip mostra o texto completo
+- Se a mensagem tiver áudio/imagem/arquivo → mostrar `🎤 [áudio]`, `🖼️ [imagem]`, `📎 [arquivo]`
+- Se não tiver mensagens → mostrar "Sem mensagens disponíveis"
+
+### 1.3 — Lazy loading
+
+Pra não sobrecarregar a API do ChatGuru com 46 chamadas simultâneas:
+- Carregar preview **só dos primeiros 10 leads visíveis na tela**
+- Outros leads → preview carrega ao fazer scroll (intersection observer)
+- Mostrar skeleton (animação de carregamento) enquanto busca
+
+---
+
+## PARTE 2 — BOTÕES DE MENSAGEM PRONTA
+
+### 2.1 — Backend: criar endpoint `/api/conversations/:chatNumber/send`
+
+Cria handler que:
+
+1. Recebe `chatNumber` na URL
+2. Body: `{ "templateId": "A" | "B" | "C" | "D", "customMessage": "..." }`
+3. Busca dados do lead (nome, campanha) no banco local
+4. Renderiza o template substituindo variáveis (`{nome}`, `{campanha}`)
+5. Envia via API do ChatGuru
+6. Loga o envio numa tabela `sent_messages` (pra auditoria)
+7. Retorna sucesso/erro
+
+**Tabela `sent_messages`:**
+```typescript
+export const sentMessagesTable = pgTable("sent_messages", {
+  id: serial("id").primaryKey(),
+  chatNumber: text("chat_number").notNull(),
+  templateId: text("template_id").notNull(),
+  messageText: text("message_text").notNull(),
+  sentBy: text("sent_by").notNull(), // sempre "Eduardo" por enquanto
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+  chatguruResponse: jsonb("chatguru_response"),
+  status: text("status").notNull(), // "success" | "error"
+});
+```
+
+### 2.2 — Definir os 4 templates
+
+Criar arquivo `server/message-templates.ts`:
+
+```typescript
+export interface MessageTemplate {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string; // mostrado no menu
+  text: (vars: { nome: string; campanha?: string }) => string;
+}
+
+export const TEMPLATES: MessageTemplate[] = [
+  {
+    id: "A",
+    label: "Cobrança suave",
+    emoji: "💬",
+    description: "Lead que sumiu — chamar de volta com leveza",
+    text: ({ nome, campanha }) =>
+      `Oi ${primeiroNome(nome)}, tudo bem? Vi que ficou pendente nossa conversa sobre ${campanha || "seu caso"}. Ainda posso te ajudar? 🙏`,
+  },
+  {
+    id: "B",
+    label: "Reativação de antigo",
+    emoji: "🔄",
+    description: "Lead +7 dias parado — pegar de volta",
+    text: ({ nome, campanha }) =>
+      `Oi ${primeiroNome(nome)}, aqui é do escritório do Dr. Eduardo. Tava te chamando pra saber se ainda tem interesse no ${campanha || "atendimento"}. Se preferir, posso ligar 🙏`,
+  },
+  {
+    id: "C",
+    label: "Aviso de implantação",
+    emoji: "✅",
+    description: "Cliente em fase 'Implantado a Receber' — boa notícia",
+    text: ({ nome }) =>
+      `Boa notícia, ${primeiroNome(nome)}! Seu benefício foi implantado. Estamos acompanhando a data de pagamento e te avisaremos assim que sair 🙏`,
+  },
+  {
+    id: "D",
+    label: "Cobrança de mensalidade",
+    emoji: "💰",
+    description: "Cliente parcelado sem lançamento do mês",
+    text: ({ nome }) =>
+      `Oi ${primeiroNome(nome)}, tudo bem? Notamos que a parcela do mês ainda não consta. Pode verificar pra gente? 🙏`,
+  },
+];
+
+function primeiroNome(nome: string): string {
+  if (!nome) return "tudo bem";
+  const partes = nome.trim().split(" ");
+  return partes[0];
+}

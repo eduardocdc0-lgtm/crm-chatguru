@@ -1,0 +1,132 @@
+## 2.3 — Frontend: dropdown de envio rápido
+
+No card do lead, substituir botão "Enviar mensagem" por **dropdown**:
+
+```
+[💬 Enviar ▼]
+```
+
+Ao clicar, abre menu com 4 opções + opção customizada:
+
+```
+┌──────────────────────────────────────────────┐
+│ 💬 A — Cobrança suave                        │
+│    "Oi Daniel, tudo bem? Vi que ficou..."   │
+├──────────────────────────────────────────────┤
+│ 🔄 B — Reativação de antigo                  │
+│    "Oi Daniel, aqui é do escritório..."     │
+├──────────────────────────────────────────────┤
+│ ✅ C — Aviso de implantação                  │
+│    "Boa notícia, Daniel! Seu benefício..."  │
+├──────────────────────────────────────────────┤
+│ 💰 D — Cobrança de mensalidade               │
+│    "Oi Daniel, tudo bem? Notamos que..."    │
+├──────────────────────────────────────────────┤
+│ ✏️ Mensagem customizada...                   │
+└──────────────────────────────────────────────┘
+```
+
+Cada item mostra **preview da mensagem renderizada** com o nome do lead já substituído.
+
+### 2.4 — Modal de confirmação
+
+Ao clicar num template, abrir modal:
+
+```
+┌───────────────────────────────────────────────┐
+│ Enviar mensagem para Daniel Guedes?          │
+│ 554488562824                                 │
+│                                              │
+│ ┌─ Mensagem ──────────────────────────────┐│
+│ │ Oi Daniel, tudo bem? Vi que ficou      ││
+│ │ pendente nossa conversa sobre Laudo    ││
+│ │ SUS Geral. Ainda posso te ajudar? 🙏   ││
+│ └──────────────────────────────────────────┘│
+│                                              │
+│ [Editar antes de enviar]                     │
+│                                              │
+│ [Cancelar]              [✓ Enviar agora]    │
+└───────────────────────────────────────────────┘
+```
+
+**Regras:**
+- Botão "Editar antes de enviar" → torna o textarea editável
+- "Enviar agora" → chama `/api/conversations/:chatNumber/send`
+- Após sucesso → toast verde "Mensagem enviada ✓" + atualiza preview do card com a nova mensagem
+- Após erro → toast vermelho "Erro ao enviar: [msg]"
+
+### 2.5 — Mensagem customizada
+
+Se clicar em "✏️ Mensagem customizada", abre modal igual mas com textarea vazio e instrução:
+
+> "Digite sua mensagem. Use `{nome}` pra inserir o primeiro nome do lead automaticamente."
+
+Antes de enviar, substitui `{nome}` pelo primeiro nome do lead.
+
+### 2.6 — Indicador de "última mensagem enviada via CRM"
+
+Se o último envio foi feito pelo próprio CRM (consultar `sent_messages`), mostrar badge no card:
+
+```
+✅ Você enviou "Cobrança suave" há 2h
+```
+
+Pra Eduardo não enviar duas vezes a mesma coisa.
+
+---
+
+## PARTE 3 — APLICAR EM TODAS AS TELAS
+
+Implementar Preview + Botões em:
+
+1. **Aba Alertas** (Urgente + Esfriando) — prioridade máxima
+2. **Aba Reengajamento** — onde a função faz mais sentido
+3. **Aba Conversas** — lista geral de leads
+4. **Dashboard → seção "Leads Recentes"** — também útil
+5. **Futura aba Auditoria** (já planejada) — quando houver lead pra cobrar
+
+---
+
+## REGRAS IMPORTANTES
+
+1. ❌ **NÃO QUEBRAR** outras abas. Especialmente as que já funcionam.
+2. ❌ **NÃO enviar mensagem sem confirmação** do Eduardo. Sempre passa pelo modal.
+3. ✅ **Logar TODOS os envios** na tabela `sent_messages` — auditoria é crítica.
+4. ✅ **Tratar erro da API ChatGuru gracefully** — se cair, não trava a UI, só mostra erro no toast.
+5. ✅ **Layout responsivo** — Eduardo acessa muito do iPhone. No mobile, o dropdown vira bottom sheet.
+6. ✅ **Permissões:** só Eduardo (admin) pode enviar mensagem. Team (colaboradores) vê preview mas não tem botão "Enviar".
+7. ✅ **Rate limit:** se Eduardo clicar 5x seguidas no mesmo lead, bloquear o 5º envio com mensagem "Você já enviou 4 mensagens nas últimas 2h. Aguarde antes de mandar mais."
+
+---
+
+## TESTE FINAL
+
+Quando terminar, validar:
+
+1. Abrir aba **Alertas** → ver os 46 cards COM preview de últimas 3 mensagens
+2. Hover na mensagem truncada → tooltip mostra texto completo
+3. Clicar em **💬 Enviar ▼** → dropdown abre com 4 templates + customizada
+4. Cada template mostra preview com nome do lead já substituído
+5. Clicar em template "A" → modal abre
+6. Modal mostra mensagem completa, número, e nome do lead
+7. Clicar "Editar antes de enviar" → textarea fica editável
+8. Clicar "Enviar agora" → toast verde + preview do card atualiza
+9. Conferir tabela `sent_messages` no banco → registro foi criado
+10. Tentar enviar 5x seguidas → 5º bloqueia
+11. Mobile: bottom sheet em vez de dropdown
+12. Outras abas: Auditoria, Reengajamento, Conversas, Dashboard — preview também aparece
+13. Outras abas (Equipe, Números, Tags) continuam funcionando
+
+**Quando terminar, me avise pra eu testar.**
+
+---
+
+## DEPOIS DESSA ENTREGA
+
+Próximas frentes (NÃO fazer agora):
+- Mais templates conforme necessidade aparece
+- Templates por equipe (Comercial usa A/B, Atendimento usa C/D)
+- Resposta automática se cliente reagir ao envio
+- Métricas: % de leads que respondem após cada template
+
+**Pode executar!** 🚀

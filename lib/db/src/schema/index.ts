@@ -6,3 +6,4 @@ export * from "./status_history";
 export * from "./daily_summaries";
 export * from "./campaigns";
 export * from "./audiences";
+export * from "./sent_messages";

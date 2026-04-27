@@ -10,7 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
 import { timeAgo, silenceLevel } from "@/lib/time";
-import { Search, Loader2, FileText, Trash2, ExternalLink, Clock, ChevronDown, X } from "lucide-react";
+import { Search, Loader2, FileText, Trash2, ExternalLink, Clock, ChevronDown, X, Send } from "lucide-react";
+import { SendTemplateButton } from "@/components/send-template-button";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
@@ -325,7 +326,13 @@ export function Conversations() {
                         }
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <SendTemplateButton
+                            chatNumber={conv.chatNumber}
+                            contactName={conv.contactName}
+                            campaign={(conv as any).campaign}
+                            size="sm"
+                          />
                           <Button
                             variant="ghost"
                             size="sm"

@@ -10,6 +10,7 @@ import { getCampaign, CampaignTag } from "@/lib/campaignColors";
 import { timeAgo, silenceLevel } from "@/lib/time";
 import { LeadModal } from "@/components/lead-modal";
 import { getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
+import { SendTemplateButton } from "@/components/send-template-button";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -328,12 +329,18 @@ export function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Status + time */}
-                    <div className="flex-shrink-0 text-right">
+                    {/* Status + time + send */}
+                    <div className="flex-shrink-0 flex flex-col items-end gap-1.5">
                       <StatusBadge status={activity.status} />
-                      <p className={`text-xs mt-1 ${silLvl === "critical" ? "text-red-500 font-semibold" : silLvl === "warning" ? "text-amber-500" : "text-muted-foreground"}`}>
+                      <p className={`text-xs ${silLvl === "critical" ? "text-red-500 font-semibold" : silLvl === "warning" ? "text-amber-500" : "text-muted-foreground"}`}>
                         {timeAgo(activity.lastMessageAt || activity.updatedAt)}
                       </p>
+                      <SendTemplateButton
+                        chatNumber={activity.chatNumber}
+                        contactName={activity.contactName}
+                        campaign={(activity as any).campaign}
+                        size="sm"
+                      />
                     </div>
                   </div>
                 );

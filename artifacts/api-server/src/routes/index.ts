@@ -9,6 +9,7 @@ import summariesRouter from "./summaries";
 import campaignsRouter from "./campaigns";
 import auditRouter from "./audit";
 import authRouter from "./auth";
+import messagesRouter from "./messages";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -25,6 +26,7 @@ router.use("/agents", agentsRouter);
 router.use("/whatsapp-numbers", whatsappNumbersRouter);
 router.use("/tags", tagsRouter);
 router.use("/conversations", conversationsExtraRouter);
+router.use("/conversations", messagesRouter);
 router.use("/summaries", summariesRouter);
 router.use("/campaigns", campaignsRouter);
 router.use("/audit", auditRouter);
