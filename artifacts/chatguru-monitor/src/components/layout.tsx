@@ -43,12 +43,12 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { name: "Alertas", href: "/alerts", icon: AlertTriangle },
       { name: "Resumos", href: "/summaries", icon: BarChart2, adminOnly: true },
       { name: "Reengajamento", href: "/reengagement", icon: SendHorizonal },
+      { name: "Meta Ads", href: "/traffic", icon: TrendingUp, adminOnly: true },
     ],
   },
   {
     label: "Configuração",
     items: [
-      { name: "Performance de Tráfego", href: "/traffic", icon: TrendingUp, adminOnly: true },
       { name: "Auditoria de Anúncios", href: "/audit", icon: ShieldAlert, adminOnly: true },
       { name: "Equipe", href: "/team", icon: Users, adminOnly: true },
       { name: "Números", href: "/numbers", icon: Smartphone, adminOnly: true },
