@@ -99,7 +99,7 @@ router.get("/", async (_req, res) => {
     // Account-level summary
     const accountInsights = await metaGet(`/${AD_ACCOUNT}/insights`, {
       fields: insightFields,
-      date_preset: "last_30_d",
+      date_preset: "last_30d",
     }) as { data: Array<Record<string, unknown>> };
 
     const agg = accountInsights.data?.[0] ?? {};
@@ -116,7 +116,7 @@ router.get("/", async (_req, res) => {
 
     // Campaigns list with insights
     const campaignsRaw = await metaGet(`/${AD_ACCOUNT}/campaigns`, {
-      fields: `name,status,objective,insights.date_preset(last_30_d){${insightFields}}`,
+      fields: `name,status,objective,insights.date_preset(last_30d){${insightFields}}`,
       limit: "100",
     }) as { data: Array<Record<string, unknown>> };
 
