@@ -17,10 +17,16 @@ import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
 
-// Public: auth endpoints
+// ─── Públicas (sem autenticação) ──────────────────────────────────────────────
 router.use("/auth", authRouter);
 
-// Protected: all other routes require valid session cookie
+// Webhook do AdvBox: eles chamam sem nosso cookie — deve ser público
+router.post("/advbox/webhook", (req, res, next) => {
+  // Delega direto para o handler sem passar pelo requireAuth
+  advboxRouter(req, res, next);
+});
+
+// ─── Protegidas: exige sessão válida ─────────────────────────────────────────
 router.use(requireAuth);
 
 router.use(healthRouter);
