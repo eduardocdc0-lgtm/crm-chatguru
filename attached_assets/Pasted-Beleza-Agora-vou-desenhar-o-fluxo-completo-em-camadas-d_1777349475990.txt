@@ -1,0 +1,42 @@
+Beleza. Agora vou desenhar o fluxo completo em camadas — dá pro dev ver onde estão as oportunidades de automação.
+Aqui está o que mapeei do seu Notion:
+Resumo do fluxo (escritório Eduardo Rodrigues Adv. — previdenciário):
+
+3 origens de lead (Tráfego pago, Orgânico/Indicação, Base)
+Triagem comercial (Thiago) → CRM AdvBox
+Bifurcação por tipo de processo: ADM (Marília) ou Judicial (Alice/Letícia) ou Negociação (Salário Maternidade → Marília)
+Fluxo Judicial com 9 etapas + recursos
+Implantação e financeiro (Claudiana)
+Camada paralela de monitoramento de intimações (Gmail dos tribunais → Notion)
+
+Vou começar pela visão macro em camadas — é o que o dev precisa ver primeiro:
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.25s;
+    animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+VvisualizeVvisualize show_widgetAgora o fluxograma detalhado do core — a esteira do processo judicial. É o que mais tem etapa, mais ponto de falha e mais oportunidade de automação:
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.25s;
+    animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+VvisualizeVvisualize show_widgetAgora o que mais importa pro dev: onde dá pra automatizar. Esse é o mapa de oportunidades. Cada caixa é um ponto onde tem trabalho manual hoje que pode virar código:
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.25s;
+    animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+VvisualizeVvisualize show_widgetResumo pro dev
+Mostrei em três visões pra ele entender em camadas:
+Diagrama 1 — Arquitetura macro. As 5 camadas do escritório (captação → triagem → operação → controle → financeiro) com os atores e ferramentas em cada uma. É o "lay of the land".
+Diagrama 2 — Fluxo judicial detalhado. O coração operacional: as 9 etapas com responsáveis e prazos, as bifurcações da sentença (procedente, parcial, improcedente), o caminho especial do salário maternidade e a esteira paralela de monitoramento de intimações.
+Diagrama 3 — Oportunidades de automação. Onde o dev pode atacar, classificado por prioridade. Os 4 quick wins (parser de Gmail, GPT Maker → Notion, sync AdvBox ↔ Notion, due diligence CPF) resolvem trabalho manual diário.
+Pontos-chave que o dev precisa saber pra começar:
+A regra de integridade já é uma especificação implícita: "Se o processo andou, sempre tem ação correspondente. Barra CRM e tarefa caminham juntos." Isso é exatamente o invariante que uma sincronização automática garantiria.
+Tem 7 workflows já rodando dentro do AdvBox (novo caso judicial, sentença improcedente, sentença procedente, novo caso ADM, perícia marcada, processo sem laudo, salário maternidade) — então parte da automação interna já existe, o gap é a cola entre AdvBox, Notion, ChatGuru e Asaas.
+A pendência mais explícita no projeto é "Conectar GPT Maker → Notion via webhook" — esse é literalmente o próximo item da lista.
+Quer que eu detalhe algum dos pontos numa proposta técnica (escopo, esforço estimado, stack sugerida) pra você passar pro dev junto com os diagramas?
