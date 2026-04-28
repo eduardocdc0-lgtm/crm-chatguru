@@ -264,10 +264,12 @@ export function Dashboard() {
                   .map(([k, cnt]) => {
                     const m = getCampaign(k);
                     return (
-                      <div key={k} className="flex items-center gap-2">
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
-                        <span className="text-xs text-muted-foreground flex-1 truncate">{m.emoji} {m.label}</span>
-                        <span className="text-xs font-bold tabular-nums" style={{ color: m.color }}>{cnt}</span>
+                      <div key={k} className="flex items-center gap-1.5">
+                        <div style={{ width: 7, height: 7, borderRadius: "50%", background: m.color, flexShrink: 0 }} />
+                        <span className="text-xs text-muted-foreground truncate">
+                          {m.label}{" "}
+                          <strong style={{ color: m.color }}>({cnt})</strong>
+                        </span>
                       </div>
                     );
                   })}
