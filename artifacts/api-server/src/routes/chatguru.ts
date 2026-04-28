@@ -9,6 +9,8 @@ import {
 import { logger } from "../lib/logger";
 import { identifyCampaign } from "../lib/campaign";
 import { detectDisease } from "../lib/disease";
+import { buscarOuCriarPessoa, criarCaso } from "../lib/advbox";
+import { processosTable } from "@workspace/db";
 
 const router = Router();
 
@@ -183,6 +185,42 @@ router.post("/webhook", async (req: Request, res: Response) => {
         contextData: hasContext ? { ...prevContext, ...contextData } : existing[0].contextData,
         updatedAt: new Date(),
       }).where(eq(conversationsTable.chatNumber, String(chatNumber)));
+
+      // ── Auto-sync AdvBox: lead virou contrato ─────────────────────────────
+      if (newStatus === "contrato_assinado" && prevStatus !== "contrato_assinado" && process.env.ADVBOX_API_KEY) {
+        const convId = existing[0].id;
+        const convCampaign = existing[0].campaign;
+        const convName = contactName ?? existing[0].contactName ?? String(chatNumber);
+        const convPhone = String(chatNumber);
+        setImmediate(async () => {
+          try {
+            const pessoa = await buscarOuCriarPessoa({ nome: convName, telefone: convPhone });
+            const caso = await criarCaso({
+              titulo: `${convName} — ${convCampaign ?? "Previdenciário"}`,
+              pessoa_id: pessoa.id,
+            });
+            const [existingProcesso] = await db.select({ id: processosTable.id })
+              .from(processosTable).where(eq(processosTable.conversationId, convId)).limit(1);
+            if (!existingProcesso) {
+              await db.insert(processosTable).values({
+                clienteNome: convName,
+                status: "em_andamento",
+                tipo: convCampaign ?? undefined,
+                conversationId: convId,
+                advboxId: String(caso.id),
+                advboxSyncedAt: new Date(),
+              });
+            } else {
+              await db.update(processosTable)
+                .set({ advboxId: String(caso.id), advboxSyncedAt: new Date(), updatedAt: new Date() })
+                .where(eq(processosTable.id, existingProcesso.id));
+            }
+            logger.info({ chatNumber, advboxId: caso.id }, "AdvBox: caso criado automaticamente");
+          } catch (err) {
+            logger.warn({ chatNumber, err: String(err) }, "AdvBox auto-sync falhou (não crítico)");
+          }
+        });
+      }
 
     } else {
       // INSERT: lead novo — sempre começa em lead_novo

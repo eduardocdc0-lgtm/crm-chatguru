@@ -12,6 +12,7 @@ import auditRouter from "./audit";
 import authRouter from "./auth";
 import messagesRouter from "./messages";
 import processosRouter from "./processos";
+import advboxRouter from "./advbox";
 import { requireAuth } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -34,5 +35,6 @@ router.use("/campaigns", campaignsRouter);
 router.use("/meta-ads", metaAdsRouter);
 router.use("/audit", auditRouter);
 router.use("/processos", processosRouter);
+router.use("/advbox", advboxRouter);
 
 export default router;
