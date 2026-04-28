@@ -101,12 +101,62 @@ function useDiseaseStats() {
   return stats;
 }
 
+interface ProcessosMetricas {
+  totalProcessos: number;
+  tarefasPendentes: number;
+  honorariosAReceber: number;
+  despesasProximos30: number;
+}
+
+function useProcessosMetricas() {
+  const [data, setData] = React.useState<ProcessosMetricas | null>(null);
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${BASE_URL}/api/processos/metricas`);
+        const d = await r.json();
+        setData(d);
+      } catch {}
+    };
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+  return data;
+}
+
+interface AtividadeEquipe {
+  id: number;
+  nome: string;
+  tarefasPendentes: number;
+  totalProcessos: number;
+}
+
+function useEquipeAtividade() {
+  const [data, setData] = React.useState<AtividadeEquipe[]>([]);
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await fetch(`${BASE_URL}/api/processos/equipe/atividade`);
+        const d = await r.json();
+        setData(Array.isArray(d) ? d : []);
+      } catch {}
+    };
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+  return data;
+}
+
 export function Dashboard() {
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<number | null>(null);
   const alertCounts = useAlertCounts();
   const latestSummary = useLatestSummary();
   const diseaseStats = useDiseaseStats();
+  const processosMetricas = useProcessosMetricas();
+  const equipeAtividade = useEquipeAtividade();
 
   const {
     data: stats,
@@ -413,6 +463,71 @@ export function Dashboard() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Processos & Equipe */}
+      {processosMetricas !== null && (
+        <div className="space-y-4">
+          {/* Métricas de Processos */}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">Processos</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{processosMetricas.totalProcessos}</p>
+                <p className="text-xs text-blue-500 mt-0.5">Total de Processos</p>
+              </div>
+              <div className={`rounded-xl border p-3 text-center ${processosMetricas.tarefasPendentes > 0 ? "bg-amber-50 dark:bg-amber-950/30 border-amber-100 dark:border-amber-900" : "bg-muted/30 border-border"}`}>
+                <p className={`text-2xl font-bold ${processosMetricas.tarefasPendentes > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                  {processosMetricas.tarefasPendentes}
+                </p>
+                <p className={`text-xs mt-0.5 ${processosMetricas.tarefasPendentes > 0 ? "text-amber-500" : "text-muted-foreground"}`}>Tarefas Pendentes</p>
+              </div>
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900 rounded-xl p-3 text-center">
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(processosMetricas.honorariosAReceber)}
+                </p>
+                <p className="text-xs text-green-500 mt-0.5">A Receber</p>
+              </div>
+              <div className={`rounded-xl border p-3 text-center ${processosMetricas.despesasProximos30 > 0 ? "bg-red-50 dark:bg-red-950/30 border-red-100 dark:border-red-900" : "bg-muted/30 border-border"}`}>
+                <p className={`text-2xl font-bold ${processosMetricas.despesasProximos30 > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>
+                  {processosMetricas.despesasProximos30}
+                </p>
+                <p className={`text-xs mt-0.5 ${processosMetricas.despesasProximos30 > 0 ? "text-red-500" : "text-muted-foreground"}`}>Tarefas vencendo (30d)</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Atividade da Equipe */}
+          {equipeAtividade.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold mb-3">Atividade da Equipe</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {equipeAtividade.map(membro => (
+                  <div key={membro.id} className="flex items-center gap-3 p-3 border border-border rounded-xl bg-muted/20">
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                      style={{ background: avatarColor(membro.nome) }}
+                    >
+                      {membro.nome.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{membro.nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {membro.tarefasPendentes} tarefa{membro.tarefasPendentes !== 1 ? "s" : ""} pendente{membro.tarefasPendentes !== 1 ? "s" : ""}
+                        {membro.totalProcessos > 0 && <> · {membro.totalProcessos} processo{membro.totalProcessos !== 1 ? "s" : ""}</>}
+                      </p>
+                    </div>
+                    {membro.tarefasPendentes > 0 && (
+                      <span className="text-sm font-bold text-amber-600 dark:text-amber-400 flex-shrink-0">{membro.tarefasPendentes}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
