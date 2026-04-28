@@ -1,0 +1,60 @@
+import React, { useEffect, useState } from 'react';
+import { LineChart, PieChart, BarChart } from 'recharts';
+
+export default function Dashboard() {
+  const [metricas, setMetricas] = useState(null);
+  const [atividade, setAtividade] = useState([]);
+  const [campanhas, setCampanhas] = useState([]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/processos/metricas').then(r => r.json()),
+      fetch('/api/equipe/atividade').then(r => r.json()),
+      fetch('/api/campanhas/resumo').then(r => r.json()),
+    ]).then(([m, a, c]) => {
+      setMetricas(m);
+      setAtividade(a);
+      setCampanhas(c);
+    });
+  }, []);
+
+  return (
+    <div className="p-6 bg-gray-50">
+      {/* Métricas Principais */}
+      <div className="grid grid-cols-4 gap-4 mb-8">
+        <MetricCard label="Total de Processos" value={metricas?.totalProcessos || 0} />
+        <MetricCard label="Tarefas Pendentes" value={metricas?.tarefasPendentes || 0} color="text-amber-600" />
+        <MetricCard label="A Receber" value={`R$ ${metricas?.honorariosAReceber.toFixed(2)}` || 'R$ 0,00'} color="text-green-600" />
+        <MetricCard label="A Pagar" value={`R$ ${metricas?.despesasProximos30.toFixed(2)}` || 'R$ 0,00'} color="text-red-600" />
+      </div>
+
+      {/* Atividade da Equipe */}
+      <div className="bg-white p-6 rounded-lg shadow mb-8">
+        <h2 className="text-lg font-semibold mb-4">Atividade da Equipe</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {atividade.map(membro => (
+            <div key={membro.nome} className="p-4 border rounded">
+              <p className="font-semibold">{membro.nome}</p>
+              <p className="text-sm text-gray-600">{membro.tarefasPendentes} pendentes</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Campanhas */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <h2 className="text-lg font-semibold mb-4">Campanhas</h2>
+        <PieChart width={500} height={300} data={campanhas} />
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, color = 'text-gray-800' }) {
+  return (
+    <div className="bg-white p-6 rounded-lg shadow">
+      <p className="text-gray-600 text-sm">{label}</p>
+      <p className={`text-3xl font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
