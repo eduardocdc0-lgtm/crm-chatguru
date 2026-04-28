@@ -20,9 +20,17 @@ const router: IRouter = Router();
 // ─── Públicas (sem autenticação) ──────────────────────────────────────────────
 router.use("/auth", authRouter);
 
-// Webhook do AdvBox: eles chamam sem nosso cookie — deve ser público
+// ChatGuru chama sem nosso cookie → deve ser público
+// Registrado antes de requireAuth para não ser bloqueado
+router.post("/chatguru/webhook", (req, res, next) => {
+  req.url = "/webhook";
+  chatguruRouter(req, res, next);
+});
+
+// AdvBox chama sem nosso cookie → deve ser público
+// req.url precisa ser "/webhook" para o sub-router casar corretamente
 router.post("/advbox/webhook", (req, res, next) => {
-  // Delega direto para o handler sem passar pelo requireAuth
+  req.url = "/webhook";
   advboxRouter(req, res, next);
 });
 

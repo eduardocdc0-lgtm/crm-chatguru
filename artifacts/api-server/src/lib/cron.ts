@@ -11,22 +11,34 @@ async function checkCoolingLeads() {
     const h2 = new Date(now.getTime() - 2 * 60 * 60 * 1000);
     const h24 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
+    // URGENTE: lead_novo (ou legado "open") sem atualização há +2h
     await db.update(conversationsTable)
       .set({ coolingAlert: "urgente", coolingAlertAt: now })
       .where(and(
-        eq(conversationsTable.status, "open"),
+        or(
+          eq(conversationsTable.status, "lead_novo"),
+          eq(conversationsTable.status, "open"),
+        ),
         lt(conversationsTable.updatedAt, h2),
         or(isNull(conversationsTable.coolingAlert), sql`${conversationsTable.coolingAlert} != 'urgente'`)
       ));
 
+    // ESFRIANDO: em contato mas sem avanço há +24h (lead_qualificado, em_atendimento, follow_up + legados)
     await db.update(conversationsTable)
       .set({ coolingAlert: "esfriando", coolingAlertAt: now })
       .where(and(
-        or(eq(conversationsTable.status, "waiting"), eq(conversationsTable.status, "in_progress")),
+        or(
+          eq(conversationsTable.status, "lead_qualificado"),
+          eq(conversationsTable.status, "em_atendimento"),
+          eq(conversationsTable.status, "follow_up"),
+          eq(conversationsTable.status, "waiting"),
+          eq(conversationsTable.status, "in_progress"),
+        ),
         lt(conversationsTable.updatedAt, h24),
         or(isNull(conversationsTable.coolingAlert), sql`${conversationsTable.coolingAlert} != 'esfriando'`)
       ));
 
+    // LIMPAR: leads atualizados nas últimas 2h não precisam de alerta
     await db.update(conversationsTable)
       .set({ coolingAlert: null, coolingAlertAt: null })
       .where(and(
