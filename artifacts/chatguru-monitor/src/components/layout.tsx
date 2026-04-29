@@ -138,34 +138,32 @@ export function Layout({ children, onSearch }: LayoutProps) {
         </div>
 
         {/* Footer sidebar */}
-        <div className="px-4 py-3 border-t border-sidebar-border flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            title={theme === "dark" ? "Modo claro" : "Modo escuro"}
-            className="flex items-center justify-center w-9 h-9 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-          >
-            {theme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            onClick={requestPermission}
-            title="Ativar notificações"
-            className="flex items-center justify-center w-9 h-9 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-          >
-            <Bell className="w-4 h-4" />
-          </button>
-          <span className="text-xs text-sidebar-foreground/30 ml-auto">
-            {role === "admin" ? "admin" : "equipe"}
-          </span>
+        <div className="px-4 py-3 border-t border-sidebar-border space-y-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Modo claro" : "Modo escuro"}
+              className="flex items-center justify-center w-8 h-8 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={requestPermission}
+              title="Ativar notificações"
+              className="flex items-center justify-center w-8 h-8 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+            <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-sidebar-accent/50 text-sidebar-foreground/60">
+              {role === "admin" ? "admin" : "equipe"}
+            </span>
+          </div>
           <button
             onClick={handleLogout}
-            title="Sair"
-            className="flex items-center justify-center w-9 h-9 rounded-md text-sidebar-foreground/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-colors"
           >
             <LogOut className="w-4 h-4" />
+            Sair da conta
           </button>
         </div>
       </div>
@@ -201,10 +199,10 @@ export function Layout({ children, onSearch }: LayoutProps) {
             </button>
             <button
               onClick={handleLogout}
-              title="Sair"
-              className="p-2 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 border border-red-500/20 transition-colors"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
+              Sair
             </button>
           </div>
         </header>
