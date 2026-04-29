@@ -1,5 +1,5 @@
-import React from "react";
-import { Smartphone, Users } from "lucide-react";
+import React, { useState } from "react";
+import { Smartphone, Users, Key, Check, Pencil, X, Save } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -11,6 +11,7 @@ interface WaNumber {
   team: string;
   active: boolean;
   leadsTotal: number;
+  chatguruPhoneId?: string | null;
 }
 
 const TEAM_LABELS: Record<string, string> = {
@@ -24,16 +25,102 @@ function formatNumber(n: string) {
   return n;
 }
 
+function PhoneIdEditor({ number, onSaved }: { number: WaNumber; onSaved: (id: string | null) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(number.chatguruPhoneId ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    const resp = await fetch(`${BASE_URL}/api/whatsapp-numbers/${number.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatguruPhoneId: value.trim() || null }),
+    });
+    const d = await resp.json();
+    setSaving(false);
+    if (d.ok) {
+      onSaved(value.trim() || null);
+      setEditing(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="mt-3 border border-border rounded-lg p-3 space-y-2 bg-muted/20">
+        <p className="text-xs font-medium text-muted-foreground">ID ChatGuru do número</p>
+        <p className="text-xs text-muted-foreground/70">
+          Encontre em: ChatGuru → Configurações → Números → copie o ID interno do número.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            placeholder="ex: 69499a1760fb30c550cd39b7"
+            className="flex-1 text-xs font-mono px-2 py-1.5 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <button
+            onClick={save}
+            disabled={saving}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+          >
+            <Save className="h-3 w-3" />
+            {saving ? "Salvando..." : "Salvar"}
+          </button>
+          <button
+            onClick={() => { setValue(number.chatguruPhoneId ?? ""); setEditing(false); }}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/30"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <div className="flex-1 flex items-center gap-2">
+        <Key className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+        {number.chatguruPhoneId ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-mono text-muted-foreground truncate max-w-[160px]">{number.chatguruPhoneId}</span>
+            <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
+          </div>
+        ) : (
+          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">ID ChatGuru não configurado</span>
+        )}
+      </div>
+      <button
+        onClick={() => setEditing(true)}
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+      >
+        <Pencil className="h-3 w-3" />
+        {number.chatguruPhoneId ? "Editar" : "Configurar"}
+      </button>
+    </div>
+  );
+}
+
 export function Numbers() {
   const [numbers, setNumbers] = React.useState<WaNumber[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
+  const load = React.useCallback(() => {
     fetch(`${BASE_URL}/api/whatsapp-numbers`)
       .then(r => r.json())
       .then(d => setNumbers(d.numbers ?? []))
       .finally(() => setLoading(false));
   }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const updatePhoneId = (id: number, phoneId: string | null) => {
+    setNumbers(prev => prev.map(n => n.id === id ? { ...n, chatguruPhoneId: phoneId } : n));
+  };
+
+  const unconfigured = numbers.filter(n => !n.chatguruPhoneId);
 
   return (
     <div className="space-y-6">
@@ -42,9 +129,24 @@ export function Numbers() {
         <p className="text-muted-foreground text-sm mt-1">Origens de atendimento do escritório.</p>
       </div>
 
+      {!loading && unconfigured.length > 0 && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <Key className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {unconfigured.length} número{unconfigured.length > 1 ? "s" : ""} sem ID ChatGuru
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              Sem o ID ChatGuru configurado, o envio de mensagens via Reengajamento não funcionará.
+              Clique em "Configurar" abaixo para adicionar o ID de cada número.
+            </p>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
+          {[1, 2].map(i => <Skeleton key={i} className="h-52 w-full rounded-xl" />)}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -76,6 +178,13 @@ export function Numbers() {
                     <p className="text-xs text-muted-foreground">Equipe</p>
                     <p className="text-sm font-medium mt-0.5">{TEAM_LABELS[num.team] ?? num.team}</p>
                   </div>
+                </div>
+
+                <div className="border-t border-border pt-3">
+                  <PhoneIdEditor
+                    number={num}
+                    onSaved={(id) => updatePhoneId(num.id, id)}
+                  />
                 </div>
               </div>
             );

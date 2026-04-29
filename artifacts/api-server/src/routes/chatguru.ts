@@ -557,17 +557,35 @@ router.post("/check-status", async (req: Request, res: Response) => {
 });
 
 router.post("/send-message", async (req: Request, res: Response) => {
-  const { chatNumber, message } = req.body ?? {};
+  const { chatNumber, message, whatsappNumberId } = req.body ?? {};
   if (!chatNumber || !message) { res.status(400).json({ ok: false, error: "chatNumber e message são obrigatórios" }); return; }
   try {
+    // Resolve o phone_id: preferir o cadastrado no número de WhatsApp, senão usa env
+    let resolvedPhoneId = PHONE_ID;
+    if (whatsappNumberId) {
+      const [waNum] = await db.select().from(whatsappNumbersTable)
+        .where(eq(whatsappNumbersTable.id, Number(whatsappNumberId))).limit(1);
+      if (waNum?.chatguruPhoneId) {
+        resolvedPhoneId = waNum.chatguruPhoneId;
+        req.log.info({ whatsappNumberId, phoneId: resolvedPhoneId }, "Using chatguru_phone_id from DB");
+      } else {
+        req.log.warn({ whatsappNumberId }, "chatguru_phone_id not set for this number, using env fallback");
+      }
+    }
+
+    if (!resolvedPhoneId) {
+      res.status(400).json({ ok: false, error: "phone_id não configurado. Acesse Configurações → Números e informe o ID ChatGuru do número." });
+      return;
+    }
+
     const sendDate = new Date(Date.now() + 60 * 1000);
     const pad = (n: number) => String(n).padStart(2, "0");
     const sendDateStr = `${sendDate.getFullYear()}-${pad(sendDate.getMonth() + 1)}-${pad(sendDate.getDate())} ${pad(sendDate.getHours())}:${pad(sendDate.getMinutes())}`;
     const params = new URLSearchParams({
-      key: API_KEY, account_id: ACCOUNT_ID, phone_id: PHONE_ID,
+      key: API_KEY, account_id: ACCOUNT_ID, phone_id: resolvedPhoneId,
       action: "message_send", chat_number: chatNumber, text: message, send_date: sendDateStr,
     });
-    req.log.info({ chatNumber, sendDateStr }, "Sending message via ChatGuru API");
+    req.log.info({ chatNumber, sendDateStr, phoneId: resolvedPhoneId }, "Sending message via ChatGuru API");
     const response = await fetch(`${CHATGURU_API}?${params}`, { method: "POST" });
     const raw = (await response.json()) as Record<string, unknown>;
     const ok = raw.result === "success" || raw.code === 201 || raw.code === 200;

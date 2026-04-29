@@ -1,10 +1,18 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useListConversations, getListConversationsQueryKey } from "@workspace/api-client-react";
 import { formatPhone } from "@/lib/utils";
-import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle, Key } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+
+interface WaNumber {
+  id: number;
+  number: string;
+  label: string;
+  team: string;
+  chatguruPhoneId?: string | null;
+}
 
 type SendStatus = "idle" | "sending" | "ok" | "error";
 
@@ -48,12 +56,27 @@ export function Reengagement() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [rows, setRows] = useState<LeadRow[] | null>(null);
   const [sending, setSending] = useState(false);
+  const [numbers, setNumbers] = useState<WaNumber[]>([]);
+  const [selectedNumberId, setSelectedNumberId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/whatsapp-numbers`)
+      .then(r => r.json())
+      .then(d => {
+        const nums: WaNumber[] = d.numbers ?? [];
+        setNumbers(nums);
+        // Seleciona automaticamente o primeiro número com phone_id configurado
+        const withId = nums.find(n => n.chatguruPhoneId);
+        if (withId) setSelectedNumberId(withId.id);
+      })
+      .catch(() => {});
+  }, []);
 
   const { data, isLoading, isError } = useListConversations(
-    { status: "open", limit: 200 },
+    { status: "lead_novo", limit: 200 },
     {
       query: {
-        queryKey: getListConversationsQueryKey({ status: "open", limit: 200 }),
+        queryKey: getListConversationsQueryKey({ status: "lead_novo", limit: 200 }),
       },
     }
   );
@@ -125,7 +148,11 @@ export function Reengagement() {
         const resp = await fetch(`${BASE_URL}/api/chatguru/send-message`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chatNumber: lead.chatNumber, message: message.trim() }),
+          body: JSON.stringify({
+            chatNumber: lead.chatNumber,
+            message: message.trim(),
+            whatsappNumberId: selectedNumberId ?? undefined,
+          }),
         });
         const json = await resp.json();
         if (json.ok) {
@@ -237,6 +264,35 @@ export function Reengagement() {
                 {selectedFiltered.slice(0, 3).map(l => l.contactName || formatPhone(l.chatNumber)).join(", ")}
                 {selectedFiltered.length > 3 ? ` +${selectedFiltered.length - 3}` : ""}
               </p>
+            )}
+          </div>
+
+          {/* Seletor de número de origem */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-foreground">Número de origem</label>
+            {numbers.length === 0 ? (
+              <div className="text-xs text-muted-foreground">Carregando números...</div>
+            ) : (
+              <select
+                value={selectedNumberId ?? ""}
+                onChange={e => setSelectedNumberId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">— usar padrão do sistema —</option>
+                {numbers.map(n => (
+                  <option key={n.id} value={n.id} disabled={!n.chatguruPhoneId}>
+                    {n.label} {n.chatguruPhoneId ? "✓" : "(ID não configurado)"}
+                  </option>
+                ))}
+              </select>
+            )}
+            {selectedNumberId && numbers.find(n => n.id === selectedNumberId && !n.chatguruPhoneId) && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 rounded-lg">
+                <Key className="h-3.5 w-3.5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Este número não tem ID ChatGuru. Configure em <strong>Números de WhatsApp</strong>.
+                </p>
+              </div>
             )}
           </div>
 

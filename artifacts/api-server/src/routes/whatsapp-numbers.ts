@@ -10,6 +10,15 @@ const NumBody = z.object({
   label: z.string().min(1),
   team: z.enum(["COMERCIAL_TRAFEGO", "ATENDIMENTO"]),
   active: z.boolean().optional(),
+  chatguruPhoneId: z.string().optional().nullable(),
+});
+
+const NumPatch = z.object({
+  number: z.string().min(10).optional(),
+  label: z.string().min(1).optional(),
+  team: z.enum(["COMERCIAL_TRAFEGO", "ATENDIMENTO"]).optional(),
+  active: z.boolean().optional(),
+  chatguruPhoneId: z.string().optional().nullable(),
 });
 
 router.get("/", async (_req: Request, res: Response) => {
@@ -40,8 +49,10 @@ router.post("/", async (req: Request, res: Response) => {
 router.patch("/:id", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
+  const parsed = NumPatch.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.message }); return; }
   const [num] = await db.update(whatsappNumbersTable)
-    .set(req.body)
+    .set(parsed.data)
     .where(eq(whatsappNumbersTable.id, id))
     .returning();
   res.json({ ok: true, number: num });
