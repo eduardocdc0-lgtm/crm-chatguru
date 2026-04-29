@@ -223,11 +223,14 @@ export function Conversations() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="open">Aberto</SelectItem>
-                  <SelectItem value="in_progress">Em Atendimento</SelectItem>
-                  <SelectItem value="waiting">Aguardando</SelectItem>
-                  <SelectItem value="resolved">Resolvido</SelectItem>
-                  <SelectItem value="closed">Fechado</SelectItem>
+                  <SelectItem value="lead_novo">Lead Novo</SelectItem>
+                  <SelectItem value="lead_qualificado">Lead Qualificado</SelectItem>
+                  <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
+                  <SelectItem value="follow_up">Follow Up</SelectItem>
+                  <SelectItem value="contrato_assinado">Contrato Assinado</SelectItem>
+                  <SelectItem value="cliente_ativo">Cliente Ativo</SelectItem>
+                  <SelectItem value="cliente_procedente">Cliente Procedente</SelectItem>
+                  <SelectItem value="lead_descartado">Lead Descartado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

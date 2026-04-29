@@ -18,8 +18,17 @@ interface SearchResult {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  open: "Aberto", in_progress: "Em Atendimento", waiting: "Aguardando",
-  resolved: "Resolvido", closed: "Fechado",
+  lead_novo: "Lead Novo",
+  lead_qualificado: "Lead Qualificado",
+  em_atendimento: "Em Atendimento",
+  follow_up: "Follow Up",
+  contrato_assinado: "Contrato Assinado",
+  cliente_ativo: "Cliente Ativo",
+  cliente_procedente: "Cliente Procedente",
+  lead_descartado: "Lead Descartado",
+  // legado
+  open: "Lead Novo", in_progress: "Em Atendimento", waiting: "Aguardando",
+  resolved: "Contrato Assinado", closed: "Lead Descartado",
 };
 
 interface SearchModalProps {

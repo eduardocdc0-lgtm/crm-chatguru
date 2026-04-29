@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db, conversationsTable, dailySummariesTable, agentsTable } from "@workspace/db";
-import { eq, and, gte, lt, count, sql, desc } from "drizzle-orm";
+import { eq, and, gte, lt, count, sql, desc, or } from "drizzle-orm";
 
 const router = Router();
 
@@ -30,18 +30,24 @@ export async function generateDailySummary(dateStr?: string): Promise<Record<str
     .where(and(gte(conversationsTable.createdAt, dayStart), lt(conversationsTable.createdAt, dayEnd)))
     .groupBy(conversationsTable.whatsappNumberId);
 
-  // Movimentação de status no dia
+  // Movimentação de status no dia (pipeline atual)
   const qualified = await db.select({ count: count() })
     .from(conversationsTable)
-    .where(and(eq(conversationsTable.status, "in_progress"), gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
+    .where(and(
+      or(eq(conversationsTable.status, "em_atendimento"), eq(conversationsTable.status, "lead_qualificado"), eq(conversationsTable.status, "in_progress")),
+      gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
 
   const resolved = await db.select({ count: count() })
     .from(conversationsTable)
-    .where(and(eq(conversationsTable.status, "resolved"), gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
+    .where(and(
+      or(eq(conversationsTable.status, "contrato_assinado"), eq(conversationsTable.status, "cliente_ativo"), eq(conversationsTable.status, "cliente_procedente"), eq(conversationsTable.status, "resolved")),
+      gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
 
   const closed = await db.select({ count: count() })
     .from(conversationsTable)
-    .where(and(eq(conversationsTable.status, "closed"), gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
+    .where(and(
+      or(eq(conversationsTable.status, "lead_descartado"), eq(conversationsTable.status, "closed")),
+      gte(conversationsTable.updatedAt, dayStart), lt(conversationsTable.updatedAt, dayEnd)));
 
   // Alertas ativos
   const urgentCount = await db.select({ count: count() })

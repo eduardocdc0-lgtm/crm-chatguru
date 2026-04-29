@@ -21,12 +21,21 @@ router.get("/alerts/list", async (_req: Request, res: Response) => {
 
   const urgentCount = await db.select({ count: sql<number>`count(*)::int` })
     .from(conversationsTable)
-    .where(and(eq(conversationsTable.status, "open"), lt(conversationsTable.updatedAt, h2)));
+    .where(and(
+      or(eq(conversationsTable.status, "lead_novo"), eq(conversationsTable.status, "open")),
+      lt(conversationsTable.updatedAt, h2),
+    ));
 
   const coolingCount = await db.select({ count: sql<number>`count(*)::int` })
     .from(conversationsTable)
     .where(and(
-      or(eq(conversationsTable.status, "waiting"), eq(conversationsTable.status, "in_progress")),
+      or(
+        eq(conversationsTable.status, "lead_qualificado"),
+        eq(conversationsTable.status, "em_atendimento"),
+        eq(conversationsTable.status, "follow_up"),
+        eq(conversationsTable.status, "waiting"),
+        eq(conversationsTable.status, "in_progress"),
+      ),
       lt(conversationsTable.updatedAt, h24),
     ));
 
