@@ -1,0 +1,64 @@
+Quero adicionar uma funcionalidade de RESPOSTA RÁPIDA na tela de Conversas e na tela de Alertas, pra que a equipe não precise mais sair do sistema pra responder no ChatGuru.
+
+CONTEXTO:
+- Hoje, na tela de Conversas e Alertas, a equipe vê a lista de quem precisa de atenção, mas pra responder, tem que clicar no link e abrir o ChatGuru, achar a conversa, ler o histórico, decidir o que escrever, voltar.
+- Isso é trabalho desnecessário e atrasa atendimento.
+- Já temos a rota POST /api/chatguru/send-message funcionando perfeitamente (acabamos de testar).
+
+O QUE PRECISO IMPLEMENTAR:
+
+1. NA COLUNA "AÇÕES" da tabela de Conversas e na tela de Alertas, adicionar um novo botão chamado "💬 Responder" (antes do ícone de abrir no ChatGuru e do ícone de deletar).
+
+2. Ao clicar no botão "Responder", abrir um MODAL com:
+   
+   a. Cabeçalho: nome do contato, número, atendente responsável
+   
+   b. ÚLTIMAS 3 MENSAGENS da conversa, em ordem cronológica (da mais antiga pra mais recente), mostrando:
+      - Quem mandou (cliente ou atendente — diferenciar visualmente, tipo bolha verde pro atendente à direita e cinza pro cliente à esquerda, igual WhatsApp)
+      - O conteúdo da mensagem (texto completo)
+      - Se for áudio, mostrar "🎤 Áudio recebido" e botão "Ouvir" se possível
+      - Se for imagem, mostrar "📷 Imagem recebida" com thumbnail se possível
+      - Se for documento, mostrar "📄 Documento: [nome do arquivo]"
+      - Horário de cada mensagem
+   
+   c. Campo de texto pra digitar a resposta (textarea com altura razoável, uns 4-5 linhas)
+   
+   d. Botão "Enviar" (azul, destaque)
+   
+   e. Botão "Cancelar" (sutil, fecha o modal sem enviar)
+
+3. AO CLICAR EM "ENVIAR":
+   - Chamar a rota /api/chatguru/send-message com chatNumber e message
+   - Mostrar loading no botão enquanto envia
+   - Se sucesso:
+     * Fechar o modal automaticamente
+     * Mostrar toast de sucesso "Mensagem enviada"
+     * REMOVER esse contato da lista atual de Conversas/Alertas (porque ele não está mais "aguardando resposta")
+     * Atualizar os contadores das tabelas/cards (diminuir 1 do "vácuo", "sem resposta", etc.)
+   - Se erro:
+     * Manter modal aberto
+     * Mostrar mensagem de erro clara
+
+4. APLICAR EM AMBAS AS ORIGENS:
+   - Funcionalidade deve estar disponível tanto pra Base quanto pra Tráfego Pago (sem distinção)
+   - O botão "Responder" usa automaticamente o número correto de origem baseado em qual conversa é (se a conversa veio pelo 0647, responde pelo 0647; se veio pelo 4526, responde pelo 4526)
+
+5. ENDPOINT NOVO PRA BUSCAR ÚLTIMAS MENSAGENS:
+   Se ainda não tiver, criar endpoint:
+   GET /api/chatguru/conversation-messages?chatNumber=X&limit=3
+   
+   Que retorna as últimas 3 mensagens da conversa direto da API do ChatGuru (consultar a documentação da API do ChatGuru pra achar o endpoint certo de "histórico de chat" ou "mensagens").
+   
+   Se a API do ChatGuru não permitir consultar mensagens facilmente, sinaliza pra mim e a gente decide outra abordagem (tipo armazenar mensagens no banco via webhook).
+
+6. UX FINAL:
+   - Modal deve abrir com campo de texto JÁ FOCADO (cursor pronto pra digitar)
+   - Apertar Enter envia (Shift+Enter quebra linha)
+   - Apertar Esc fecha modal
+   - Modal deve ter fundo escurecido (overlay) cobrindo a tela toda
+
+Antes de implementar:
+- Verifique se a API do ChatGuru tem endpoint pra buscar histórico de mensagens de uma conversa específica
+- Se não tiver, me avise antes de implementar a parte do histórico
+
+Depois de implementar, dê Republish e me confirme. Vou testar respondendo um lead de verdade.

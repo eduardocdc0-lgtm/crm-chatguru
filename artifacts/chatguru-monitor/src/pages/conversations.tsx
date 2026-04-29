@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
 import { timeAgo, silenceLevel } from "@/lib/time";
-import { Search, Loader2, FileText, Trash2, ExternalLink, Clock, ChevronDown, X, Send } from "lucide-react";
+import { Search, Loader2, FileText, Trash2, ExternalLink, Clock, ChevronDown, X, MessageSquare } from "lucide-react";
 import { SendTemplateButton } from "@/components/send-template-button";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { DISEASE_OPTIONS, getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
 import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
 import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
+import { QuickReplyModal, type QuickReplyTarget } from "@/components/quick-reply-modal";
 
 const CHATGURU_WEB = "https://app.zap.guru";
 
@@ -163,6 +164,7 @@ export function Conversations() {
   const [campaign, setCampaign] = useState<string>("all");
   const [diseases, setDiseases] = useState<string[]>([]);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [quickReply, setQuickReply] = useState<QuickReplyTarget | null>(null);
   const debouncedSearch = useDebounce(search, 500);
   const queryClient = useQueryClient();
   const { origem } = useOrigem();
@@ -339,6 +341,21 @@ export function Conversations() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 flex-wrap">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                            title="Responder"
+                            onClick={() => setQuickReply({
+                              chatNumber: conv.chatNumber,
+                              contactName: conv.contactName,
+                              assignedAgent: conv.assignedAgent,
+                              whatsappNumberId: (conv as any).whatsappNumberId ?? null,
+                            })}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Responder
+                          </Button>
                           <SendTemplateButton
                             chatNumber={conv.chatNumber}
                             contactName={conv.contactName}
@@ -386,6 +403,15 @@ export function Conversations() {
           )}
         </CardContent>
       </Card>
+
+      <QuickReplyModal
+        target={quickReply}
+        onClose={() => setQuickReply(null)}
+        onSent={() => {
+          queryClient.invalidateQueries();
+          toast.success("Lista atualizada.");
+        }}
+      />
     </div>
   );
 }

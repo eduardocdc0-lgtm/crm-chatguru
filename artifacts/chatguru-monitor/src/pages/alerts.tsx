@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, Flame, Clock, ExternalLink } from "lucide-react";
+import { AlertTriangle, Flame, Clock, ExternalLink, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { LeadModal } from "@/components/lead-modal";
 import { SendTemplateButton } from "@/components/send-template-button";
 import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
 import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
+import { QuickReplyModal, type QuickReplyTarget } from "@/components/quick-reply-modal";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const CHATGURU_WEB = "https://app.zap.guru";
@@ -46,8 +47,9 @@ function useAlerts(waId?: number | null) {
 export function Alerts() {
   const { origem } = useOrigem();
   const waId = ORIGEM_WA_ID[origem];
-  const { data, loading } = useAlerts(waId);
+  const { data, loading, reload } = useAlerts(waId);
   const [leadId, setLeadId] = useState<number | null>(null);
+  const [quickReply, setQuickReply] = useState<QuickReplyTarget | null>(null);
 
   const urgent = (data?.alerts ?? []).filter(a => a.coolingAlert === "urgente");
   const cooling = (data?.alerts ?? []).filter(a => a.coolingAlert === "esfriando");
@@ -107,7 +109,19 @@ export function Alerts() {
                 <Flame className="h-4 w-4" /> Urgente ({urgent.length})
               </h2>
               <div className="space-y-3">
-                {urgent.map(a => <AlertCard key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
+                {urgent.map(a => (
+                  <AlertCard
+                    key={a.id}
+                    alert={a}
+                    onOpen={() => setLeadId(a.id)}
+                    onReply={() => setQuickReply({
+                      chatNumber: a.chatNumber,
+                      contactName: a.contactName,
+                      assignedAgent: a.assignedAgent,
+                      whatsappNumberId: (a as any).whatsappNumberId ?? null,
+                    })}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -118,7 +132,19 @@ export function Alerts() {
                 <Clock className="h-4 w-4" /> Esfriando ({cooling.length})
               </h2>
               <div className="space-y-3">
-                {cooling.map(a => <AlertCard key={a.id} alert={a} onOpen={() => setLeadId(a.id)} />)}
+                {cooling.map(a => (
+                  <AlertCard
+                    key={a.id}
+                    alert={a}
+                    onOpen={() => setLeadId(a.id)}
+                    onReply={() => setQuickReply({
+                      chatNumber: a.chatNumber,
+                      contactName: a.contactName,
+                      assignedAgent: a.assignedAgent,
+                      whatsappNumberId: (a as any).whatsappNumberId ?? null,
+                    })}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -133,11 +159,16 @@ export function Alerts() {
       )}
 
       <LeadModal leadId={leadId} onClose={() => setLeadId(null)} />
+      <QuickReplyModal
+        target={quickReply}
+        onClose={() => setQuickReply(null)}
+        onSent={() => reload()}
+      />
     </div>
   );
 }
 
-function AlertCard({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) {
+function AlertCard({ alert, onOpen, onReply }: { alert: AlertLead; onOpen: () => void; onReply: () => void }) {
   const name = alert.contactName || formatPhone(alert.chatNumber);
   const phone = alert.chatNumber.replace(/\D/g, "");
 
@@ -179,6 +210,13 @@ function AlertCard({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) 
 
       {/* Actions */}
       <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={onReply}
+          className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+        >
+          <MessageSquare className="w-3.5 h-3.5" />
+          Responder
+        </button>
         <SendTemplateButton
           chatNumber={alert.chatNumber}
           contactName={alert.contactName}
