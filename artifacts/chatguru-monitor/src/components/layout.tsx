@@ -215,7 +215,7 @@ export function Layout({ children, onSearch }: LayoutProps) {
             { href: "/", icon: LayoutDashboard, label: "Home" },
             { href: "/conversations", icon: MessageSquareText, label: "Leads" },
             { href: "/alerts", icon: AlertTriangle, label: "Alertas" },
-            { href: "/reengagement", icon: SendHorizonal, label: "Reeng." },
+            ...(role === "admin" ? [{ href: "/traffic", icon: TrendingUp, label: "Meta Ads" }] : [{ href: "/reengagement", icon: SendHorizonal, label: "Reeng." }]),
             { href: "/check", icon: Search, label: "Consultar" },
           ].map((item) => {
             const isActive =
