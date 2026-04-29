@@ -195,29 +195,53 @@ router.get("/token-status", async (_req, res) => {
   const appSecret = process.env["META_APP_SECRET"];
   const token = process.env["META_TOKEN_OVERRIDE"] || process.env["META_ACCESS_TOKEN"];
 
-  if (!appId || !appSecret || !token) {
+  if (!token) {
     res.json({ valid: false, error: "Credenciais incompletas" });
     return;
   }
 
+  // First try debug_token if we have app credentials
+  if (appId && appSecret) {
+    try {
+      const url = new URL(`${META_BASE}/debug_token`);
+      url.searchParams.set("input_token", token);
+      url.searchParams.set("access_token", `${appId}|${appSecret}`);
+      const r = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
+      const json = await r.json() as { data?: { is_valid?: boolean; expires_at?: number; scopes?: string[] }; error?: unknown };
+      const data = json.data ?? {};
+      // Only trust debug_token if it explicitly says invalid (not just missing)
+      if (data.is_valid === false) {
+        res.json({ valid: false, expiresAt: null, daysLeft: null, scopes: [] });
+        return;
+      }
+      if (data.is_valid === true) {
+        const expiresAt = data.expires_at ?? null;
+        const daysLeft = expiresAt ? Math.ceil((expiresAt * 1000 - Date.now()) / 86400000) : null;
+        res.json({ valid: true, expiresAt, daysLeft, scopes: data.scopes ?? [] });
+        return;
+      }
+    } catch {
+      // debug_token failed, fall through to live check
+    }
+  }
+
+  // Fallback: test the token by making a real API call
   try {
-    const url = new URL(`${META_BASE}/debug_token`);
-    url.searchParams.set("input_token", token);
-    url.searchParams.set("access_token", `${appId}|${appSecret}`);
-    const r = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) });
-    const json = await r.json() as { data?: { is_valid?: boolean; expires_at?: number; scopes?: string[] } };
-    const data = json.data ?? {};
-    const expiresAt = data.expires_at ?? null;
-    const daysLeft = expiresAt ? Math.ceil((expiresAt * 1000 - Date.now()) / 86400000) : null;
-    res.json({
-      valid: data.is_valid ?? false,
-      expiresAt,
-      daysLeft,
-      scopes: data.scopes ?? [],
-    });
+    const adAccount = getAdAccount();
+    const testUrl = new URL(`${META_BASE}/${adAccount}`);
+    testUrl.searchParams.set("fields", "id,name");
+    testUrl.searchParams.set("access_token", token);
+    const r = await fetch(testUrl.toString(), { signal: AbortSignal.timeout(8000) });
+    const json = await r.json() as { id?: string; error?: { code?: number } };
+    if (json.id) {
+      // Token works! We don't know expiry but it's valid
+      res.json({ valid: true, expiresAt: null, daysLeft: null, scopes: [] });
+    } else {
+      res.json({ valid: false, expiresAt: null, daysLeft: null, scopes: [] });
+    }
   } catch (err) {
-    logger.error({ err }, "Token status check failed");
-    res.status(502).json({ valid: false, error: "Erro ao verificar token" });
+    logger.error({ err }, "Token status fallback check failed");
+    res.json({ valid: false, error: "Erro ao verificar token" });
   }
 });
 
