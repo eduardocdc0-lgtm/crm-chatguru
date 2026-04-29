@@ -14,7 +14,7 @@ import { processosTable } from "@workspace/db";
 
 const router = Router();
 
-const CHATGURU_API = "https://app.zap.guru/api/v1";
+const CHATGURU_API = "https://s22.chatguru.app/api/v1";
 const API_KEY = process.env.CHATGURU_API_KEY!;
 const ACCOUNT_ID = process.env.CHATGURU_ACCOUNT_ID!;
 const PHONE_ID = process.env.CHATGURU_PHONE_ID!;
