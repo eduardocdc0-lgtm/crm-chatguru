@@ -677,9 +677,8 @@ router.post("/send-message", async (req: Request, res: Response) => {
       return;
     }
 
-    const sendDate = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const sendDateStr = `${sendDate.getFullYear()}-${pad(sendDate.getMonth() + 1)}-${pad(sendDate.getDate())} ${pad(sendDate.getHours())}:${pad(sendDate.getMinutes())}`;
+    // ChatGuru espera horário de Brasília (UTC-3). O servidor roda em UTC.
+    const sendDateStr = new Date().toLocaleString("sv-SE", { timeZone: "America/Recife" }).slice(0, 16).replace("T", " ");
     const params = new URLSearchParams({
       key: API_KEY, account_id: ACCOUNT_ID, phone_id: resolvedPhoneId,
       action: "message_send", chat_number: chatNumber, text: message, send_date: sendDateStr,
