@@ -12,7 +12,8 @@ function getAdAccount(): string {
 }
 
 function getToken(): string {
-  const t = process.env["META_ACCESS_TOKEN"];
+  // META_TOKEN_OVERRIDE permite atualizar o token sem depender do sistema de Secrets
+  const t = process.env["META_TOKEN_OVERRIDE"] || process.env["META_ACCESS_TOKEN"];
   if (!t) throw new Error("META_ACCESS_TOKEN não configurado");
   return t;
 }
@@ -192,7 +193,7 @@ router.get("/", async (req, res) => {
 router.get("/token-status", async (_req, res) => {
   const appId = process.env["META_APP_ID"];
   const appSecret = process.env["META_APP_SECRET"];
-  const token = process.env["META_ACCESS_TOKEN"];
+  const token = process.env["META_TOKEN_OVERRIDE"] || process.env["META_ACCESS_TOKEN"];
 
   if (!appId || !appSecret || !token) {
     res.json({ valid: false, error: "Credenciais incompletas" });
