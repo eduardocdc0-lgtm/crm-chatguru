@@ -115,17 +115,38 @@ router.post("/webhook", async (req: Request, res: Response) => {
     }
     const hasContext = Object.keys(contextData).length > 0;
 
-    // Identificar número de WhatsApp de destino (origem do lead)
-    const rawPhoneId = raw.phone_id ?? raw.celular_destino ?? null;
+    // ── Identificar número de WhatsApp de destino (origem do lead) ─────────────
+    // Prioridade 1: query param ?waId=X na URL do webhook (abordagem por URL separada)
+    // Prioridade 2: campo phone_id no payload (match por chatguru_phone_id ou number)
     let whatsappNumberId: number | null = null;
     let whatsappTeam: string | null = null;
-    if (rawPhoneId) {
-      const phoneClean = String(rawPhoneId).replace(/\D/g, "");
-      const numRow = await db.select().from(whatsappNumbersTable)
-        .where(eq(whatsappNumbersTable.number, phoneClean)).limit(1);
-      if (numRow.length > 0) {
-        whatsappNumberId = numRow[0].id;
-        whatsappTeam = (numRow[0] as any).team ?? null;
+
+    const waIdParam = req.query.waId ?? req.query.whatsappNumberId;
+    if (waIdParam) {
+      const waNum = await db.select().from(whatsappNumbersTable)
+        .where(eq(whatsappNumbersTable.id, Number(waIdParam))).limit(1);
+      if (waNum.length > 0) {
+        whatsappNumberId = waNum[0].id;
+        whatsappTeam = waNum[0].team;
+        req.log.info({ waId: whatsappNumberId, label: waNum[0].label }, "Origem identificada via query param");
+      }
+    }
+
+    if (!whatsappNumberId) {
+      const rawPhoneId = raw.phone_id ?? raw.celular_destino ?? null;
+      if (rawPhoneId) {
+        const phoneClean = String(rawPhoneId).replace(/\D/g, "");
+        // Tenta match por chatguru_phone_id (ID interno ChatGuru) OU por number (fone real)
+        const numRow = await db.select().from(whatsappNumbersTable)
+          .where(or(
+            eq(whatsappNumbersTable.number, phoneClean),
+            eq(whatsappNumbersTable.chatguruPhoneId, String(rawPhoneId)),
+          )).limit(1);
+        if (numRow.length > 0) {
+          whatsappNumberId = numRow[0].id;
+          whatsappTeam = numRow[0].team;
+          req.log.info({ rawPhoneId, whatsappNumberId }, "Origem identificada via phone_id no payload");
+        }
       }
     }
 
@@ -657,10 +678,25 @@ router.post("/send-message", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/webhook-url", (req: Request, res: Response) => {
-  const domains = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "seu-dominio.replit.app";
-  const url = `https://${domains}/api/chatguru/webhook`;
-  res.json({ url, instructions: "Configure este URL no ChatGuru em: Chatbot → Ação de CRM → POST Webhook." });
+router.get("/webhook-url", async (_req: Request, res: Response) => {
+  const domain = process.env.REPLIT_DOMAINS?.split(",")[0] ?? "seu-dominio.replit.app";
+  const base = `https://${domain}/api/chatguru/webhook`;
+
+  const numbers = await db.select().from(whatsappNumbersTable).orderBy(asc(whatsappNumbersTable.id));
+
+  const urls = numbers.map(n => ({
+    id: n.id,
+    label: n.label,
+    number: n.number,
+    webhookUrl: `${base}?waId=${n.id}`,
+    instructions: `Configure este URL no ChatGuru para o número ${n.label} (${n.number}): Configurações → Números → Selecione o número → Webhooks → POST Webhook`,
+  }));
+
+  res.json({
+    urls,
+    legacy: base,
+    note: "Use uma URL diferente por número de WhatsApp para identificar a origem corretamente.",
+  });
 });
 
 export default router;

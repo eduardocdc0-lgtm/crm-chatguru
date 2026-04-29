@@ -22,8 +22,10 @@ router.use("/auth", authRouter);
 
 // ChatGuru chama sem nosso cookie → deve ser público
 // Registrado antes de requireAuth para não ser bloqueado
+// Preserva query params (ex: ?waId=1) para identificação de origem
 router.post("/chatguru/webhook", (req, res, next) => {
-  req.url = "/webhook";
+  const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  req.url = `/webhook${qs}`;
   chatguruRouter(req, res, next);
 });
 

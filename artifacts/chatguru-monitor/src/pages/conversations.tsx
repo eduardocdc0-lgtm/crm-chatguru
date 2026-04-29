@@ -169,6 +169,16 @@ export function Conversations() {
   const queryClient = useQueryClient();
   const { origem } = useOrigem();
   const waId = ORIGEM_WA_ID[origem];
+  const isBase = origem === "base";
+
+  // Quando trocar para Base, limpa filtros de Tráfego Pago que não fazem sentido
+  useEffect(() => {
+    if (isBase) {
+      setStatus("all");
+      setCampaign("all");
+      setDiseases([]);
+    }
+  }, [isBase]);
 
   const params = {
     search: debouncedSearch || undefined,
@@ -220,47 +230,56 @@ export function Conversations() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por número ou nome..."
+                placeholder={isBase ? "Buscar cliente por número ou nome..." : "Buscar por número ou nome..."}
                 className="pl-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="w-full sm:w-48">
-              <Select value={status} onValueChange={(val: any) => setStatus(val)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="lead_novo">Lead Novo</SelectItem>
-                  <SelectItem value="lead_qualificado">Lead Qualificado</SelectItem>
-                  <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
-                  <SelectItem value="follow_up">Follow Up</SelectItem>
-                  <SelectItem value="contrato_assinado">Contrato Assinado</SelectItem>
-                  <SelectItem value="cliente_ativo">Cliente Ativo</SelectItem>
-                  <SelectItem value="cliente_procedente">Cliente Procedente</SelectItem>
-                  <SelectItem value="lead_descartado">Lead Descartado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full sm:w-52">
-              <Select value={campaign} onValueChange={setCampaign}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrar por campanha" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as Campanhas</SelectItem>
-                  {Object.entries(CAMPAIGN_MAP).map(([key, meta]) => (
-                    <SelectItem key={key} value={key}>
-                      {meta.emoji} {meta.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DiseaseMultiSelect selected={diseases} onChange={setDiseases} />
+            {!isBase && (
+              <>
+                <div className="w-full sm:w-48">
+                  <Select value={status} onValueChange={(val: any) => setStatus(val)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os Status</SelectItem>
+                      <SelectItem value="lead_novo">Lead Novo</SelectItem>
+                      <SelectItem value="lead_qualificado">Lead Qualificado</SelectItem>
+                      <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
+                      <SelectItem value="follow_up">Follow Up</SelectItem>
+                      <SelectItem value="contrato_assinado">Contrato Assinado</SelectItem>
+                      <SelectItem value="cliente_ativo">Cliente Ativo</SelectItem>
+                      <SelectItem value="cliente_procedente">Cliente Procedente</SelectItem>
+                      <SelectItem value="lead_descartado">Lead Descartado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-full sm:w-52">
+                  <Select value={campaign} onValueChange={setCampaign}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filtrar por campanha" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as Campanhas</SelectItem>
+                      {Object.entries(CAMPAIGN_MAP).map(([key, meta]) => (
+                        <SelectItem key={key} value={key}>
+                          {meta.emoji} {meta.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DiseaseMultiSelect selected={diseases} onChange={setDiseases} />
+              </>
+            )}
           </div>
+          {isBase && (
+            <p className="text-xs text-muted-foreground mt-2">
+              👥 Visão Base — mostrando clientes ativos da base de relacionamento
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="rounded-md border relative">
