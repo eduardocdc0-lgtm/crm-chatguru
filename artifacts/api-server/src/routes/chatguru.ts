@@ -152,10 +152,27 @@ router.post("/webhook", async (req: Request, res: Response) => {
 
     // Identificar agente pelo nome vindo do webhook (para updates)
     let agentId: number | null = null;
+    let agentTeam: string | null = null;
     if (agentName) {
-      const agentRow = await db.select().from(agentsTable)
+      const agentRow = await db.select({ id: agentsTable.id, team: agentsTable.team })
+        .from(agentsTable)
         .where(eq(agentsTable.name, agentName)).limit(1);
-      if (agentRow.length > 0) agentId = agentRow[0].id;
+      if (agentRow.length > 0) {
+        agentId = agentRow[0].id;
+        agentTeam = agentRow[0].team;
+      }
+    }
+
+    // Fallback 3: inferir origem pelo time do agente
+    // ATENDIMENTO → Base (99304526) | COMERCIAL_TRAFEGO → Comercial (91850647)
+    if (!whatsappNumberId && agentTeam) {
+      const numRow = await db.select().from(whatsappNumbersTable)
+        .where(eq(whatsappNumbersTable.team, agentTeam)).limit(1);
+      if (numRow.length > 0) {
+        whatsappNumberId = numRow[0].id;
+        whatsappTeam = numRow[0].team;
+        req.log.info({ agentName, agentTeam, whatsappNumberId }, "Origem inferida pelo time do agente");
+      }
     }
 
     const existing = await db.select()
