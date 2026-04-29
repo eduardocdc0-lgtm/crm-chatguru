@@ -106,6 +106,53 @@ router.get("/search", async (req: Request, res: Response) => {
   res.json({ results: rows });
 });
 
+// ─── REENGAJAMENTO ───────────────────────────────────────────────────────────
+// GET /api/conversations/reengagement?days=3&whatsappNumberId=1
+// Retorna leads onde o lead ficou em silêncio por +X dias
+// Status permitidos: lead_novo, lead_qualificado, follow_up
+router.get("/reengagement", async (req: Request, res: Response) => {
+  const days = Math.max(1, Math.min(90, Number(req.query.days) || 3));
+  const waIdParam = req.query.whatsappNumberId;
+
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const ALLOWED_STATUS = ["lead_novo", "lead_qualificado", "follow_up"];
+
+  const conditions = [
+    inArray(conversationsTable.status, ALLOWED_STATUS),
+    or(
+      // Lead mandou mensagem, mas faz mais de X dias
+      and(isNotNull(conversationsTable.lastMessageAt), lt(conversationsTable.lastMessageAt, cutoff)),
+      // Lead nunca mandou mensagem registrada + criado há mais de X dias
+      and(isNull(conversationsTable.lastMessageAt), lt(conversationsTable.createdAt, cutoff)),
+    ),
+  ];
+
+  if (waIdParam) {
+    conditions.push(eq(conversationsTable.whatsappNumberId, Number(waIdParam)));
+  }
+
+  const rows = await db.select({
+    id: conversationsTable.id,
+    chatNumber: conversationsTable.chatNumber,
+    contactName: conversationsTable.contactName,
+    status: conversationsTable.status,
+    assignedAgent: conversationsTable.assignedAgent,
+    campaign: conversationsTable.campaign,
+    lastMessageAt: conversationsTable.lastMessageAt,
+    createdAt: conversationsTable.createdAt,
+    updatedAt: conversationsTable.updatedAt,
+    whatsappNumberId: conversationsTable.whatsappNumberId,
+    contextData: conversationsTable.contextData,
+  })
+    .from(conversationsTable)
+    .where(and(...conditions))
+    .orderBy(conversationsTable.lastMessageAt)
+    .limit(500);
+
+  res.json({ leads: rows, days, total: rows.length });
+});
+
 // ─── EXPORT CSV ──────────────────────────────────────────────────────────────
 router.get("/export", async (req: Request, res: Response) => {
   const status = req.query.status as string | undefined;

@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useListConversations, getListConversationsQueryKey } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
 import { formatPhone } from "@/lib/utils";
-import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle, Key } from "lucide-react";
+import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCircle2, XCircle, Key, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
 import { OrigemFilterBar } from "@/components/origem-filter";
+import { cn } from "@/lib/utils";
 
 interface WaNumber {
   id: number;
@@ -18,17 +19,36 @@ interface WaNumber {
 
 type SendStatus = "idle" | "sending" | "ok" | "error";
 
-interface LeadRow {
+interface ReengLead {
   id: number;
   chatNumber: string;
   contactName?: string | null;
   assignedAgent?: string | null;
+  status: string;
+  campaign?: string | null;
   lastMessageAt?: string | null;
-  updatedAt: string;
-  origem?: string;
+  createdAt: string;
+  whatsappNumberId?: number | null;
+  contextData?: Record<string, unknown> | null;
+}
+
+interface LeadRow extends ReengLead {
   sendStatus: SendStatus;
   errorMsg?: string;
 }
+
+const WINDOW_OPTIONS = [
+  { days: 3,  label: "3 dias" },
+  { days: 7,  label: "7 dias" },
+  { days: 15, label: "15 dias" },
+  { days: 30, label: "30 dias" },
+];
+
+const STATUS_LABELS: Record<string, string> = {
+  lead_novo:        "Lead Novo",
+  lead_qualificado: "Qualificado",
+  follow_up:        "Follow Up",
+};
 
 function getInitials(name: string) {
   return name.replace(/[^\w\s]/g, "").split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("") || "?";
@@ -41,12 +61,13 @@ function avatarColor(name: string) {
   return COLORS[Math.abs(h)];
 }
 
-function hoursAgo(dateStr?: string | null) {
-  if (!dateStr) return null;
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000 / 3600;
-  if (diff < 1) return "há menos de 1h";
-  if (diff < 24) return `há ${Math.floor(diff)}h`;
-  return `há ${Math.floor(diff / 24)}d`;
+function silenceDuration(dateStr?: string | null, fallback?: string | null) {
+  const d = dateStr ?? fallback;
+  if (!d) return "data desconhecida";
+  const diff = (Date.now() - new Date(d).getTime()) / 1000 / 3600;
+  if (diff < 24) return `${Math.floor(diff)}h em silêncio`;
+  const days = Math.floor(diff / 24);
+  return `${days}d em silêncio`;
 }
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
@@ -55,6 +76,8 @@ export function Reengagement() {
   const { toast } = useToast();
   const { origem } = useOrigem();
   const waId = ORIGEM_WA_ID[origem];
+
+  const [windowDays, setWindowDays] = useState(3);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -75,7 +98,6 @@ export function Reengagement() {
       .catch(() => {});
   }, []);
 
-  // Auto-select phone number based on origem filter
   useEffect(() => {
     if (waId && numbers.length > 0) {
       const match = numbers.find(n => n.id === waId);
@@ -83,31 +105,19 @@ export function Reengagement() {
     }
   }, [waId, numbers]);
 
-  // Reset rows when filter changes
-  useEffect(() => { setRows(null); setSelected(new Set()); }, [origem]);
+  useEffect(() => { setRows(null); setSelected(new Set()); }, [origem, windowDays]);
 
-  const convParams = { status: "lead_novo", limit: 200, ...(waId ? { whatsappNumberId: waId } : {}) };
-  const { data, isLoading, isError } = useListConversations(
-    convParams as any,
-    {
-      query: {
-        queryKey: getListConversationsQueryKey(convParams as any),
-      },
-    }
-  );
+  const queryUrl = `${BASE_URL}/api/conversations/reengagement?days=${windowDays}${waId ? `&whatsappNumberId=${waId}` : ""}`;
+
+  const { data, isLoading, isError } = useQuery<{ leads: ReengLead[]; days: number; total: number }>({
+    queryKey: ["reengagement", windowDays, waId ?? "all"],
+    queryFn: () => fetch(queryUrl).then(r => r.json()),
+    staleTime: 2 * 60 * 1000,
+  });
 
   const allLeads: LeadRow[] = useMemo(() => {
-    if (!data?.conversations) return [];
-    return data.conversations.map(c => ({
-      id: c.id,
-      chatNumber: c.chatNumber,
-      contactName: c.contactName,
-      assignedAgent: c.assignedAgent,
-      lastMessageAt: c.lastMessageAt,
-      updatedAt: c.updatedAt,
-      origem: (c.contextData as any)?.campanha_nome ?? (c.contextData as any)?.origem ?? undefined,
-      sendStatus: "idle" as SendStatus,
-    }));
+    if (!data?.leads) return [];
+    return data.leads.map(c => ({ ...c, sendStatus: "idle" as SendStatus }));
   }, [data]);
 
   const displayRows = rows ?? allLeads;
@@ -187,6 +197,7 @@ export function Reengagement() {
   };
 
   const selectedFiltered = filtered.filter(l => selected.has(l.id));
+  const totalCount = data?.total ?? 0;
 
   return (
     <div className="space-y-6">
@@ -195,10 +206,39 @@ export function Reengagement() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Reengajamento</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Envie mensagens para leads que ainda não responderam.
+            Leads que pararam de responder — só status Novo, Qualificado ou Follow Up.
           </p>
         </div>
         <OrigemFilterBar />
+      </div>
+
+      {/* Seletor de janela + contador */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm font-medium text-foreground">Sem resposta há mais de:</span>
+        <div className="flex gap-1.5">
+          {WINDOW_OPTIONS.map(opt => (
+            <button
+              key={opt.days}
+              onClick={() => setWindowDays(opt.days)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors",
+                windowDays === opt.days
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {!isLoading && (
+          <div className="ml-auto flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-1.5">
+            <Users className="h-4 w-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+              {totalCount} lead{totalCount !== 1 ? "s" : ""} para reengajar nesta janela
+            </span>
+          </div>
+        )}
       </div>
 
       {isError && (
@@ -211,7 +251,6 @@ export function Reengagement() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lead List */}
         <div className="lg:col-span-2 bg-card border border-border rounded-xl overflow-hidden">
-          {/* Toolbar */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-muted/30">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -224,7 +263,7 @@ export function Reengagement() {
               />
             </div>
             <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {isLoading ? "—" : `${filtered.length} leads`}
+              {isLoading ? "—" : `${filtered.length} exibidos`}
             </span>
             <button
               onClick={toggleAll}
@@ -237,8 +276,7 @@ export function Reengagement() {
             </button>
           </div>
 
-          {/* Rows */}
-          <div className="divide-y divide-border max-h-[480px] overflow-y-auto">
+          <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
             {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -252,15 +290,18 @@ export function Reengagement() {
               ))
             ) : filtered.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground text-sm">
-                Nenhum lead em aberto encontrado.
+                <Users className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                Nenhum lead em silêncio há mais de {windowDays} dia{windowDays !== 1 ? "s" : ""}.
               </div>
             ) : (
-              filtered.map(lead => <ReengagementRow
-                key={lead.id}
-                lead={lead}
-                isSelected={selected.has(lead.id)}
-                onToggle={() => lead.sendStatus === "idle" && toggle(lead.id)}
-              />)
+              filtered.map(lead => (
+                <ReengagementRow
+                  key={lead.id}
+                  lead={lead}
+                  isSelected={selected.has(lead.id)}
+                  onToggle={() => lead.sendStatus === "idle" && toggle(lead.id)}
+                />
+              ))
             )}
           </div>
         </div>
@@ -270,7 +311,7 @@ export function Reengagement() {
           <div>
             <h2 className="text-sm font-semibold mb-1">Mensagem</h2>
             <p className="text-xs text-muted-foreground">
-              Será enviada pelo número de Thiago (0647) para os leads selecionados.
+              Será enviada pelo número selecionado para os leads marcados.
             </p>
           </div>
 
@@ -285,7 +326,6 @@ export function Reengagement() {
             )}
           </div>
 
-          {/* Seletor de número de origem */}
           <div className="space-y-2">
             <label className="text-xs font-medium text-foreground">Número de origem</label>
             {numbers.length === 0 ? (
@@ -353,13 +393,17 @@ function ReengagementRow({ lead, isSelected, onToggle }: {
   onToggle: () => void;
 }) {
   const name = lead.contactName || formatPhone(lead.chatNumber);
+  const statusLabel = STATUS_LABELS[lead.status] ?? lead.status;
 
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${isSelected ? "bg-primary/5" : "hover:bg-muted/20"} ${lead.sendStatus !== "idle" ? "opacity-70" : ""}`}
+      className={cn(
+        "flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors",
+        isSelected ? "bg-primary/5" : "hover:bg-muted/20",
+        lead.sendStatus !== "idle" && "opacity-70"
+      )}
       onClick={() => lead.sendStatus === "idle" && onToggle()}
     >
-      {/* Checkbox / Status */}
       <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
         {lead.sendStatus === "sending" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         {lead.sendStatus === "ok" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
@@ -369,28 +413,29 @@ function ReengagementRow({ lead, isSelected, onToggle }: {
         )}
       </div>
 
-      {/* Avatar */}
       <div style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(name), display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 700, fontSize: 11, flexShrink: 0 }}>
         {getInitials(name)}
       </div>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{name}</span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+            {statusLabel}
+          </span>
           {lead.sendStatus === "error" && <span className="text-xs text-red-500">{lead.errorMsg}</span>}
         </div>
         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
           <span className="text-xs text-muted-foreground">{formatPhone(lead.chatNumber)}</span>
           {lead.assignedAgent && <span className="text-xs text-muted-foreground">• {lead.assignedAgent}</span>}
+          {lead.campaign && <span className="text-xs text-muted-foreground">• {lead.campaign}</span>}
         </div>
       </div>
 
-      {/* Time */}
-      <div className="flex-shrink-0">
-        <span className="text-xs text-muted-foreground flex items-center gap-1">
+      <div className="flex-shrink-0 text-right">
+        <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 whitespace-nowrap">
           <Clock className="h-3 w-3" />
-          {hoursAgo(lead.lastMessageAt || lead.updatedAt)}
+          {silenceDuration(lead.lastMessageAt, lead.createdAt)}
         </span>
       </div>
     </div>
