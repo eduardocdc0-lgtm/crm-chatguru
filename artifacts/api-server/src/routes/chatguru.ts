@@ -677,7 +677,7 @@ router.post("/send-message", async (req: Request, res: Response) => {
       return;
     }
 
-    const sendDate = new Date(Date.now() + 60 * 1000);
+    const sendDate = new Date();
     const pad = (n: number) => String(n).padStart(2, "0");
     const sendDateStr = `${sendDate.getFullYear()}-${pad(sendDate.getMonth() + 1)}-${pad(sendDate.getDate())} ${pad(sendDate.getHours())}:${pad(sendDate.getMinutes())}`;
     const params = new URLSearchParams({
