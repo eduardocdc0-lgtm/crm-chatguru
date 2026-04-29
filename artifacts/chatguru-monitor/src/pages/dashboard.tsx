@@ -80,7 +80,6 @@ function useStats(waId?: number | null) {
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(false);
-  const [tick, setTick] = React.useState(0);
   const load = React.useCallback(async () => {
     setLoading(true);
     setError(false);
@@ -97,7 +96,29 @@ function useStats(waId?: number | null) {
     const t = setInterval(load, 30000);
     return () => clearInterval(t);
   }, [load]);
-  return { data, loading, error, refetch: () => setTick(t => t + 1) };
+  return { data, loading, error, refetch: load };
+}
+
+interface BaseStats { noVacuo: number; emAtendimento: number; mensagensHoje: number }
+
+function useBaseStats(active: boolean) {
+  const [data, setData] = React.useState<BaseStats | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const load = React.useCallback(async () => {
+    if (!active) return;
+    setLoading(true);
+    try {
+      const r = await fetch(`${BASE_URL}/api/chatguru/base-stats`);
+      const d = await r.json();
+      setData(d);
+    } catch {} finally { setLoading(false); }
+  }, [active]);
+  React.useEffect(() => {
+    load();
+    const t = setInterval(load, 20000);
+    return () => clearInterval(t);
+  }, [load]);
+  return { data, loading, refetch: load };
 }
 
 function useLatestSummary() {
@@ -188,6 +209,8 @@ export function Dashboard() {
   const processosMetricas = useProcessosMetricas();
   const equipeAtividade = useEquipeAtividade();
 
+  const isBase = origem === "base";
+
   const {
     data: stats,
     loading: statsLoading,
@@ -195,6 +218,8 @@ export function Dashboard() {
     refetch: refetchStats,
   } = useStats(waId);
   const isFetching = statsLoading;
+
+  const { data: baseStats, loading: baseLoading, refetch: refetchBase } = useBaseStats(isBase);
 
   const { data: webhookInfo } = useGetWebhookUrl({
     query: { queryKey: getGetWebhookUrlQueryKey() },
@@ -293,7 +318,69 @@ export function Dashboard() {
         </a>
       )}
 
-      {/* Stat Cards */}
+      {/* ── BASE VIEW: 3 cards especiais ──────────────────────────────── */}
+      {isBase && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* 🚨 No Vácuo */}
+          <div className={`relative overflow-hidden rounded-2xl border-2 p-6 shadow-md ${
+            (baseStats?.noVacuo ?? 0) > 0
+              ? "bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/50 dark:to-orange-950/30 border-red-300 dark:border-red-700"
+              : "bg-card border-border"
+          }`}>
+            {(baseStats?.noVacuo ?? 0) > 0 && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute -top-4 -right-4 w-24 h-24 rounded-full bg-red-400/10 dark:bg-red-400/5" />
+              </div>
+            )}
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-[11px] font-bold uppercase tracking-widest ${(baseStats?.noVacuo ?? 0) > 0 ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>NO VÁCUO 10MIN</span>
+              <span className={`text-2xl ${(baseStats?.noVacuo ?? 0) > 0 ? "animate-bounce" : ""}`}>🚨</span>
+            </div>
+            {baseLoading
+              ? <Skeleton className="h-14 w-20" />
+              : <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: (baseStats?.noVacuo ?? 0) > 0 ? "#dc2626" : "#94a3b8" }}>
+                  {baseStats?.noVacuo ?? 0}
+                </div>
+            }
+            <p className={`text-xs mt-2 ${(baseStats?.noVacuo ?? 0) > 0 ? "text-red-600/80 dark:text-red-400/70 font-medium" : "text-muted-foreground"}`}>
+              {(baseStats?.noVacuo ?? 0) > 0 ? "⚡ Requer atenção imediata" : "Tudo em dia"}
+            </p>
+          </div>
+
+          {/* 💬 Em Atendimento */}
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-cyan-700 dark:text-cyan-400">EM ATENDIMENTO</span>
+              <span className="text-2xl">💬</span>
+            </div>
+            {baseLoading
+              ? <Skeleton className="h-14 w-20" />
+              : <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "#0e7490" }}>
+                  {baseStats?.emAtendimento ?? 0}
+                </div>
+            }
+            <p className="text-xs mt-2 text-muted-foreground">Conversas ativas agora</p>
+          </div>
+
+          {/* 📩 Mensagens Hoje */}
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-violet-700 dark:text-violet-400">MENSAGENS HOJE</span>
+              <span className="text-2xl">📩</span>
+            </div>
+            {baseLoading
+              ? <Skeleton className="h-14 w-20" />
+              : <div style={{ fontSize: 56, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "#7c3aed" }}>
+                  {baseStats?.mensagensHoje ?? 0}
+                </div>
+            }
+            <p className="text-xs mt-2 text-muted-foreground">Contatos ativos hoje</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── NORMAL VIEW: 6 cards padrão ───────────────────────────────── */}
+      {!isBase && (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {statsLoading
           ? Array.from({ length: 6 }).map((_, i) => (
@@ -309,10 +396,12 @@ export function Dashboard() {
               </div>
             ))}
       </div>
+      )}
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Funil + Webhook */}
+      <div className={`grid grid-cols-1 gap-5 ${!isBase ? "lg:grid-cols-3" : ""}`}>
+        {/* Funil + Webhook (somente modo normal) */}
+        {!isBase && (
         <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
           <h2 className="text-sm font-semibold tracking-wide">Funil de Leads</h2>
           {statsLoading ? (
@@ -333,7 +422,6 @@ export function Dashboard() {
             </div>
           )}
 
-          {/* Legenda de campanhas com contagem */}
           {!statsLoading && stats?.byCampaign && (
             <div className="pt-3 border-t border-border">
               <p className="text-xs font-medium text-muted-foreground mb-2">Campanhas</p>
@@ -368,11 +456,12 @@ export function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
         {/* Leads Recentes */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6 shadow-sm">
+        <div className={`${!isBase ? "lg:col-span-2" : ""} bg-card border border-border rounded-xl p-6 shadow-sm`}>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-semibold tracking-wide">Leads Recentes</h2>
+            <h2 className="text-sm font-semibold tracking-wide">{isBase ? "Atividade Recente — Base" : "Leads Recentes"}</h2>
             <a href="/conversations" className="text-xs text-primary hover:underline">Ver todos →</a>
           </div>
 
@@ -437,8 +526,8 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Top Doenças */}
-      {diseaseStats.length > 0 && (
+      {/* Top Doenças — oculto na visão Base */}
+      {!isBase && diseaseStats.length > 0 && (
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold">Top Doenças</h2>
@@ -473,8 +562,8 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Daily Summary card */}
-      {latestSummary && (
+      {/* Daily Summary card — oculto na visão Base */}
+      {!isBase && latestSummary && (
         <div className="bg-card border border-border rounded-xl p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold">Resumo de Ontem</h2>
@@ -496,8 +585,8 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Processos & Equipe */}
-      {processosMetricas !== null && (
+      {/* Processos & Equipe — oculto na visão Base */}
+      {!isBase && processosMetricas !== null && (
         <div className="space-y-4">
           {/* Métricas de Processos */}
           <div className="bg-card border border-border rounded-xl p-5">

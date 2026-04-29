@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db, conversationsTable, webhookEventsTable, whatsappNumbersTable, agentsTable, statusHistoryTable } from "@workspace/db";
-import { eq, desc, count, and, or, isNull, sql, gte, asc } from "drizzle-orm";
+import { eq, desc, count, and, or, isNull, sql, gte, lt, asc } from "drizzle-orm";
 import {
   ChatguruWebhookBody,
   ListConversationsQueryParams,
@@ -462,6 +462,60 @@ router.get("/stats", async (req: Request, res: Response) => {
     resolved: pipeline.contrato_assinado,
     closed: pipeline.lead_descartado,
     recentActivity,
+  });
+});
+
+// ─── BASE STATS — métricas específicas para o número Base ────────────────────
+router.get("/base-stats", async (_req: Request, res: Response) => {
+  const now = Date.now();
+  const h10m = new Date(now - 10 * 60 * 1000);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  const finalizedStatuses = ["lead_descartado", "contrato_assinado", "cliente_ativo", "cliente_procedente", "resolved", "closed"];
+  const activeCondition = or(
+    eq(conversationsTable.status, "lead_novo"),
+    eq(conversationsTable.status, "lead_qualificado"),
+    eq(conversationsTable.status, "em_atendimento"),
+    eq(conversationsTable.status, "follow_up"),
+    eq(conversationsTable.status, "open"),
+    eq(conversationsTable.status, "waiting"),
+    eq(conversationsTable.status, "in_progress"),
+  );
+
+  const baseFilter = eq(conversationsTable.whatsappNumberId, 2);
+
+  const [noVacuoRows, emAtendimentoRows, mensagensHojeRows] = await Promise.all([
+    // 🚨 No Vácuo: Base + ativo + sem resposta > 10min
+    db.select({ count: count() })
+      .from(conversationsTable)
+      .where(and(
+        baseFilter,
+        activeCondition,
+        or(
+          and(isNull(conversationsTable.lastMessageAt), lt(conversationsTable.updatedAt, h10m)),
+          lt(conversationsTable.lastMessageAt, h10m),
+        )
+      )),
+    // 💬 Em Atendimento: Base + status ativo
+    db.select({ count: count() })
+      .from(conversationsTable)
+      .where(and(baseFilter, activeCondition)),
+    // 📩 Mensagens Hoje: Base + (lastMessageAt >= hoje OU createdAt >= hoje)
+    db.select({ count: count() })
+      .from(conversationsTable)
+      .where(and(
+        baseFilter,
+        or(
+          gte(conversationsTable.lastMessageAt, today),
+          gte(conversationsTable.createdAt, today),
+        )
+      )),
+  ]);
+
+  res.json({
+    noVacuo: Number(noVacuoRows[0]?.count ?? 0),
+    emAtendimento: Number(emAtendimentoRows[0]?.count ?? 0),
+    mensagensHoje: Number(mensagensHojeRows[0]?.count ?? 0),
   });
 });
 
