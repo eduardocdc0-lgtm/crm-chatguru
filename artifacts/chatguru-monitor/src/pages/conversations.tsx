@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "sonner";
 import { DISEASE_OPTIONS, getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
+import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
+import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
 
 const CHATGURU_WEB = "https://app.zap.guru";
 
@@ -163,12 +165,15 @@ export function Conversations() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const debouncedSearch = useDebounce(search, 500);
   const queryClient = useQueryClient();
+  const { origem } = useOrigem();
+  const waId = ORIGEM_WA_ID[origem];
 
   const params = {
     search: debouncedSearch || undefined,
     status: status === "all" ? undefined : status as ListConversationsStatus,
     campaign: campaign === "all" ? undefined : campaign,
     disease: diseases.length > 0 ? diseases.join(",") : undefined,
+    whatsappNumberId: waId ?? undefined,
     limit: 50,
   };
 
@@ -199,9 +204,12 @@ export function Conversations() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Conversas</h1>
-        <p className="text-muted-foreground text-sm mt-1">Lista completa de atendimentos.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Conversas</h1>
+          <p className="text-muted-foreground text-sm mt-1">Lista completa de atendimentos.</p>
+        </div>
+        <OrigemFilterBar />
       </div>
 
       <Card className="shadow-sm">
@@ -288,8 +296,9 @@ export function Conversations() {
                   data?.conversations.map((conv) => (
                     <TableRow key={conv.id}>
                       <TableCell>
-                        <div className="font-medium text-foreground">
+                        <div className="font-medium text-foreground flex items-center gap-1.5 flex-wrap">
                           {conv.contactName || formatPhone(conv.chatNumber)}
+                          {origem === "all" && <OrigemBadge waId={(conv as any).whatsappNumberId} />}
                         </div>
                         {conv.contactName && (
                           <div className="text-xs text-muted-foreground">

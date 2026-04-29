@@ -5,6 +5,8 @@ import { Send, Search, CheckSquare, Square, AlertCircle, Clock, Loader2, CheckCi
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
+import { OrigemFilterBar } from "@/components/origem-filter";
 
 interface WaNumber {
   id: number;
@@ -51,6 +53,8 @@ const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
 export function Reengagement() {
   const { toast } = useToast();
+  const { origem } = useOrigem();
+  const waId = ORIGEM_WA_ID[origem];
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -65,18 +69,29 @@ export function Reengagement() {
       .then(d => {
         const nums: WaNumber[] = d.numbers ?? [];
         setNumbers(nums);
-        // Seleciona automaticamente o primeiro número com phone_id configurado
         const withId = nums.find(n => n.chatguruPhoneId);
         if (withId) setSelectedNumberId(withId.id);
       })
       .catch(() => {});
   }, []);
 
+  // Auto-select phone number based on origem filter
+  useEffect(() => {
+    if (waId && numbers.length > 0) {
+      const match = numbers.find(n => n.id === waId);
+      if (match) setSelectedNumberId(match.id);
+    }
+  }, [waId, numbers]);
+
+  // Reset rows when filter changes
+  useEffect(() => { setRows(null); setSelected(new Set()); }, [origem]);
+
+  const convParams = { status: "lead_novo", limit: 200, ...(waId ? { whatsappNumberId: waId } : {}) };
   const { data, isLoading, isError } = useListConversations(
-    { status: "lead_novo", limit: 200 },
+    convParams as any,
     {
       query: {
-        queryKey: getListConversationsQueryKey({ status: "lead_novo", limit: 200 }),
+        queryKey: getListConversationsQueryKey(convParams as any),
       },
     }
   );
@@ -176,11 +191,14 @@ export function Reengagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Reengajamento</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Envie mensagens pelo número de Thiago para leads que ainda não responderam.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Reengajamento</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Envie mensagens para leads que ainda não responderam.
+          </p>
+        </div>
+        <OrigemFilterBar />
       </div>
 
       {isError && (

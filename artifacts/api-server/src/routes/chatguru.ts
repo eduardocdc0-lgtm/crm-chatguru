@@ -373,6 +373,9 @@ router.get("/conversations", async (req: Request, res: Response) => {
   const { status, search, campaign, disease, limit = 50, offset = 0 } = parsed.success ? parsed.data : { status: undefined, search: undefined, campaign: undefined, disease: undefined, limit: 50, offset: 0 };
 
   const conditions = [];
+  // Origem filter
+  const waIdParam = req.query.whatsappNumberId;
+  if (waIdParam) conditions.push(eq(conversationsTable.whatsappNumberId, Number(waIdParam)));
   if (status) conditions.push(eq(conversationsTable.status, status));
   if (campaign) conditions.push(eq(conversationsTable.campaign, campaign));
   if (disease) {
@@ -408,15 +411,19 @@ router.get("/stats", async (req: Request, res: Response) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Optional filter by whatsapp number (origem)
+  const waIdParam = req.query.whatsappNumberId;
+  const waIdFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
+
   const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts] = await Promise.all([
     db.select({ status: conversationsTable.status, count: count() })
-      .from(conversationsTable).groupBy(conversationsTable.status),
+      .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.status),
     db.select({ todayTotal: count() })
-      .from(conversationsTable).where(gte(conversationsTable.createdAt, today)),
+      .from(conversationsTable).where(waIdFilter ? and(gte(conversationsTable.createdAt, today), waIdFilter) : gte(conversationsTable.createdAt, today)),
     db.select().from(conversationsTable)
-      .orderBy(desc(conversationsTable.updatedAt)).limit(10),
+      .where(waIdFilter).orderBy(desc(conversationsTable.updatedAt)).limit(10),
     db.select({ campaign: conversationsTable.campaign, count: count() })
-      .from(conversationsTable).groupBy(conversationsTable.campaign),
+      .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.campaign),
   ]);
 
   // Pipeline completo com todos os status possíveis

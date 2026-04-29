@@ -7,6 +7,8 @@ import { timeAgo } from "@/lib/time";
 import { CampaignTag } from "@/lib/campaignColors";
 import { LeadModal } from "@/components/lead-modal";
 import { SendTemplateButton } from "@/components/send-template-button";
+import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
+import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const CHATGURU_WEB = "https://app.zap.guru";
@@ -23,49 +25,57 @@ interface AlertLead {
   coolingAlertAt?: string | null;
 }
 
-function useAlerts() {
-  const [data, setData] = React.useState<{ alerts: AlertLead[]; counts: { urgent: number; cooling: number } } | null>(null);
+function useAlerts(waId?: number | null) {
+  const [data, setData] = React.useState<{ alerts: AlertLead[]; counts: { urgent: number; cooling: number; baseAlert?: number } } | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${BASE_URL}/api/conversations/alerts/list`);
+      const qs = waId ? `?whatsappNumberId=${waId}` : "";
+      const r = await fetch(`${BASE_URL}/api/conversations/alerts/list${qs}`);
       const d = await r.json();
       setData(d);
     } finally { setLoading(false); }
-  }, []);
+  }, [waId]);
 
   React.useEffect(() => { load(); const t = setInterval(load, 60_000); return () => clearInterval(t); }, [load]);
   return { data, loading, reload: load };
 }
 
 export function Alerts() {
-  const { data, loading } = useAlerts();
+  const { origem } = useOrigem();
+  const waId = ORIGEM_WA_ID[origem];
+  const { data, loading } = useAlerts(waId);
   const [leadId, setLeadId] = useState<number | null>(null);
 
   const urgent = (data?.alerts ?? []).filter(a => a.coolingAlert === "urgente");
   const cooling = (data?.alerts ?? []).filter(a => a.coolingAlert === "esfriando");
+  const isBase = origem === "base";
+  const urgentLabel = isBase ? "Lead aberto +10min sem resposta" : "Lead aberto +2h sem resposta";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <AlertTriangle className="h-6 w-6 text-amber-500" />
-          Alertas de Leads
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">Leads que precisam de atenção imediata.</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <AlertTriangle className="h-6 w-6 text-amber-500" />
+            Alertas de Leads
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">Leads que precisam de atenção imediata.</p>
+        </div>
+        <OrigemFilterBar />
       </div>
 
       {/* Contadores */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className={`grid gap-4 ${isBase ? "grid-cols-3" : "grid-cols-2"}`}>
         <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <Flame className="h-4 w-4 text-red-500" />
             <span className="text-xs font-semibold text-red-600 dark:text-red-400">URGENTE</span>
           </div>
           <p className="text-3xl font-bold text-red-600 dark:text-red-400">{loading ? "—" : data?.counts.urgent ?? 0}</p>
-          <p className="text-xs text-red-500 mt-0.5">Lead aberto +2h sem resposta</p>
+          <p className="text-xs text-red-500 mt-0.5">{urgentLabel}</p>
         </div>
         <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
@@ -75,6 +85,16 @@ export function Alerts() {
           <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{loading ? "—" : data?.counts.cooling ?? 0}</p>
           <p className="text-xs text-amber-500 mt-0.5">Em atendimento +24h sem mudança</p>
         </div>
+        {isBase && (
+          <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm">👥</span>
+              <span className="text-xs font-semibold text-green-700 dark:text-green-400">BASE 10MIN</span>
+            </div>
+            <p className="text-3xl font-bold text-green-700 dark:text-green-400">{loading ? "—" : data?.counts.baseAlert ?? 0}</p>
+            <p className="text-xs text-green-600 mt-0.5">Ativos +10min sem resposta</p>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -135,6 +155,7 @@ function AlertCard({ alert, onOpen }: { alert: AlertLead; onOpen: () => void }) 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <StatusBadge status={alert.status} />
             <CampaignTag campaign={alert.campaign} size="xs" />
+            <OrigemBadge waId={(alert as any).whatsappNumberId} />
             {alert.assignedAgent && (
               <span className="text-xs text-muted-foreground">• {alert.assignedAgent}</span>
             )}

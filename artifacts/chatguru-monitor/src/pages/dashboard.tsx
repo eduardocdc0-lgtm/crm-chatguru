@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useGetStats, getGetStatsQueryKey, useGetWebhookUrl, getGetWebhookUrlQueryKey } from "@workspace/api-client-react";
+import { useGetWebhookUrl, getGetWebhookUrlQueryKey } from "@workspace/api-client-react";
 import { StatusBadge } from "@/components/status-badge";
 import { formatPhone, formatDate } from "@/lib/utils";
 import { RefreshCw, Copy, AlertCircle, Download, AlertTriangle, Flame } from "lucide-react";
@@ -11,6 +11,8 @@ import { timeAgo, silenceLevel } from "@/lib/time";
 import { LeadModal } from "@/components/lead-modal";
 import { getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
 import { SendTemplateButton } from "@/components/send-template-button";
+import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
+import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -56,21 +58,46 @@ function CoolingBadge({ alert }: { alert?: string | null }) {
   );
 }
 
-function useAlertCounts() {
-  const [counts, setCounts] = React.useState({ urgent: 0, cooling: 0 });
+function useAlertCounts(waId?: number | null) {
+  const [counts, setCounts] = React.useState({ urgent: 0, cooling: 0, baseAlert: 0 });
   React.useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch(`${BASE_URL}/api/conversations/alerts/list`);
+        const qs = waId ? `?whatsappNumberId=${waId}` : "";
+        const r = await fetch(`${BASE_URL}/api/conversations/alerts/list${qs}`);
         const d = await r.json();
-        setCounts(d.counts ?? { urgent: 0, cooling: 0 });
+        setCounts(d.counts ?? { urgent: 0, cooling: 0, baseAlert: 0 });
       } catch {}
     };
     load();
     const t = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [waId]);
   return counts;
+}
+
+function useStats(waId?: number | null) {
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
+  const [tick, setTick] = React.useState(0);
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const qs = waId ? `?whatsappNumberId=${waId}` : "";
+      const r = await fetch(`${BASE_URL}/api/chatguru/stats${qs}`);
+      const d = await r.json();
+      setData(d);
+    } catch { setError(true); }
+    finally { setLoading(false); }
+  }, [waId]);
+  React.useEffect(() => {
+    load();
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+  return { data, loading, error, refetch: () => setTick(t => t + 1) };
 }
 
 function useLatestSummary() {
@@ -84,12 +111,13 @@ function useLatestSummary() {
   return summary;
 }
 
-function useDiseaseStats() {
+function useDiseaseStats(waId?: number | null) {
   const [stats, setStats] = React.useState<{ disease: string | null; count: number }[]>([]);
   React.useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch(`${BASE_URL}/api/conversations/disease/stats`);
+        const qs = waId ? `?whatsappNumberId=${waId}` : "";
+        const r = await fetch(`${BASE_URL}/api/conversations/disease/stats${qs}`);
         const d = await r.json();
         setStats(d.stats ?? []);
       } catch {}
@@ -97,7 +125,7 @@ function useDiseaseStats() {
     load();
     const t = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [waId]);
   return stats;
 }
 
@@ -152,21 +180,21 @@ function useEquipeAtividade() {
 export function Dashboard() {
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<number | null>(null);
-  const alertCounts = useAlertCounts();
+  const { origem } = useOrigem();
+  const waId = ORIGEM_WA_ID[origem];
+  const alertCounts = useAlertCounts(waId);
   const latestSummary = useLatestSummary();
-  const diseaseStats = useDiseaseStats();
+  const diseaseStats = useDiseaseStats(waId);
   const processosMetricas = useProcessosMetricas();
   const equipeAtividade = useEquipeAtividade();
 
   const {
     data: stats,
-    isLoading: statsLoading,
-    isError: statsError,
+    loading: statsLoading,
+    error: statsError,
     refetch: refetchStats,
-    isFetching,
-  } = useGetStats({
-    query: { queryKey: getGetStatsQueryKey(), refetchInterval: 30000 },
-  });
+  } = useStats(waId);
+  const isFetching = statsLoading;
 
   const { data: webhookInfo } = useGetWebhookUrl({
     query: { queryKey: getGetWebhookUrlQueryKey() },
@@ -215,7 +243,8 @@ export function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1 capitalize">{today}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <OrigemFilterBar />
           <button
             onClick={exportCsv}
             className="flex items-center gap-2 border border-border rounded-xl px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/60 transition-colors shadow-sm"
@@ -375,6 +404,7 @@ export function Dashboard() {
                         <span className="font-semibold text-sm">{name}</span>
                         <NewBadge createdAt={(activity as any).createdAt} />
                         <CoolingBadge alert={(activity as any).coolingAlert} />
+                        {origem === "all" && <OrigemBadge waId={(activity as any).whatsappNumberId} />}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <CampaignTag campaign={(activity as any).campaign} size="xs" />

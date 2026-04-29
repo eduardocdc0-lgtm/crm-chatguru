@@ -21,6 +21,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { SearchModal } from "@/components/search-modal";
 import { LeadModal } from "@/components/lead-modal";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { OrigemProvider } from "@/hooks/use-origem";
 import { useLocation } from "wouter";
 
 const queryClient = new QueryClient();
@@ -131,9 +132,11 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <OrigemProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
+          </OrigemProvider>
         </AuthProvider>
         <Toaster />
         <SonnerToaster position="top-right" richColors />

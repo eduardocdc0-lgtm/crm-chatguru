@@ -7,28 +7,57 @@ import { detectDisease } from "../lib/disease";
 const router = Router();
 
 // ─── ALERTS (antes das rotas /:id para não colidir) ───────────────────────────
-router.get("/alerts/list", async (_req: Request, res: Response) => {
+router.get("/alerts/list", async (req: Request, res: Response) => {
   const h2 = new Date(Date.now() - 2 * 60 * 60 * 1000);
+  const h10m = new Date(Date.now() - 10 * 60 * 1000);
   const h24 = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  // Optional filter by whatsapp number id (origem)
+  const waIdParam = req.query.whatsappNumberId;
+  const waFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
 
   const alerts = await db.select().from(conversationsTable)
     .where(and(
+      waFilter,
       isNotNull(conversationsTable.coolingAlert),
       sql`${conversationsTable.coolingAlert} != ''`
     ))
     .orderBy(desc(conversationsTable.updatedAt))
     .limit(100);
 
-  const urgentCount = await db.select({ count: sql<number>`count(*)::int` })
+  // URGENTE: lead_novo sem resposta há +2h (Tráfego Pago) OU +10min (Base)
+  const urgentTrafegoCount = await db.select({ count: sql<number>`count(*)::int` })
     .from(conversationsTable)
     .where(and(
+      waFilter,
       or(eq(conversationsTable.status, "lead_novo"), eq(conversationsTable.status, "open")),
-      lt(conversationsTable.updatedAt, h2),
+      // Apenas Tráfego Pago (id=1) ou sem filtro: usar 2h. Base (id=2): usar 10min
+      Number(waIdParam) === 2
+        ? lt(conversationsTable.updatedAt, h10m)
+        : lt(conversationsTable.updatedAt, h2),
     ));
+
+  // Alerta especial BASE: qualquer status ativo + +10min sem resposta
+  const baseAlertCount = Number(waIdParam) === 2
+    ? await db.select({ count: sql<number>`count(*)::int` })
+        .from(conversationsTable)
+        .where(and(
+          eq(conversationsTable.whatsappNumberId, 2),
+          or(
+            eq(conversationsTable.status, "lead_novo"),
+            eq(conversationsTable.status, "lead_qualificado"),
+            eq(conversationsTable.status, "em_atendimento"),
+            eq(conversationsTable.status, "follow_up"),
+          ),
+          lt(conversationsTable.updatedAt, h10m),
+        ))
+        .then(r => Number(r[0]?.count ?? 0))
+    : 0;
 
   const coolingCount = await db.select({ count: sql<number>`count(*)::int` })
     .from(conversationsTable)
     .where(and(
+      waFilter,
       or(
         eq(conversationsTable.status, "lead_qualificado"),
         eq(conversationsTable.status, "em_atendimento"),
@@ -42,8 +71,9 @@ router.get("/alerts/list", async (_req: Request, res: Response) => {
   res.json({
     alerts,
     counts: {
-      urgent: Number(urgentCount[0]?.count ?? 0),
+      urgent: Number(urgentTrafegoCount[0]?.count ?? 0),
       cooling: Number(coolingCount[0]?.count ?? 0),
+      baseAlert: baseAlertCount,
     }
   });
 });
@@ -121,11 +151,13 @@ router.get("/export", async (req: Request, res: Response) => {
 });
 
 // ─── DISEASE STATS ───────────────────────────────────────────────────────────
-router.get("/disease/stats", async (_req: Request, res: Response) => {
+router.get("/disease/stats", async (req: Request, res: Response) => {
+  const waIdParam = req.query.whatsappNumberId;
+  const waFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
   const rows = await db
     .select({ disease: conversationsTable.disease, count: sql<number>`count(*)::int` })
     .from(conversationsTable)
-    .where(isNotNull(conversationsTable.disease))
+    .where(waFilter ? and(isNotNull(conversationsTable.disease), waFilter) : isNotNull(conversationsTable.disease))
     .groupBy(conversationsTable.disease)
     .orderBy(desc(sql`count(*)`))
     .limit(12);
