@@ -1,13 +1,42 @@
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+export type UserRole = "admin" | "agent" | "team"; // "team" is legacy, kept for backward compat
+
+export interface SessionData {
+  role: UserRole;
+  agentId?: number;
+  username: string;
+}
+
+// ── Password Hashing (crypto.scrypt — no extra dependency) ───────────────────
+export function hashPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const hash = crypto.scryptSync(password, salt, 32).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+export function verifyPassword(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  try {
+    const expected = crypto.scryptSync(password, salt, 32).toString("hex");
+    return crypto.timingSafeEqual(
+      Buffer.from(hash, "hex"),
+      Buffer.from(expected, "hex"),
+    );
+  } catch {
+    return false;
+  }
+}
+
+// ── Session Cookie (HMAC-signed base64url) ────────────────────────────────────
 function getEnv(key: string, fallback?: string): string {
   const val = process.env[key] ?? fallback;
   if (!val) throw new Error(`Missing required env var: ${key}`);
   return val;
 }
-
-export type UserRole = "admin" | "team";
 
 function sign(value: string): string {
   return crypto
@@ -16,7 +45,7 @@ function sign(value: string): string {
     .digest("hex");
 }
 
-function verifyAndDecode(cookie: string): { role: UserRole } | null {
+function verifyAndDecode(cookie: string): SessionData | null {
   const dotIdx = cookie.lastIndexOf(".");
   if (dotIdx === -1) return null;
   const payload = cookie.slice(0, dotIdx);
@@ -25,60 +54,90 @@ function verifyAndDecode(cookie: string): { role: UserRole } | null {
   try {
     const decoded = Buffer.from(payload, "base64url").toString("utf8");
     const parsed = JSON.parse(decoded);
-    if (parsed.role !== "admin" && parsed.role !== "team") return null;
-    return parsed as { role: UserRole };
+    const role = parsed.role;
+    if (role !== "admin" && role !== "agent" && role !== "team") return null;
+    return {
+      role: role as UserRole,
+      agentId: parsed.agentId ?? undefined,
+      username: parsed.username ?? (role === "admin" ? "admin" : "equipe"),
+    };
   } catch {
     return null;
   }
 }
 
-export function createSessionCookie(role: UserRole): string {
-  const payload = Buffer.from(JSON.stringify({ role })).toString("base64url");
+export function createSessionCookie(data: SessionData): string {
+  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
   const sig = sign(payload);
   return `${payload}.${sig}`;
 }
 
-export function getSessionRole(req: Request): UserRole | null {
+// ── Session Accessors ─────────────────────────────────────────────────────────
+export function getSessionData(req: Request): SessionData | null {
   const cookie = (req.cookies as Record<string, string>)?.["crm_session"];
   if (!cookie) return null;
-  return verifyAndDecode(cookie)?.role ?? null;
+  return verifyAndDecode(cookie);
 }
 
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // ChatGuru webhook must stay public
-  if (
-    req.path.startsWith("/chatguru/webhook") &&
-    req.method === "POST"
-  ) {
-    next();
-    return;
-  }
-  // Auth routes are public
-  if (req.path.startsWith("/auth/")) {
-    next();
-    return;
-  }
+/** Backward-compat: returns role only */
+export function getSessionRole(req: Request): UserRole | null {
+  return getSessionData(req)?.role ?? null;
+}
 
-  const role = getSessionRole(req);
-  if (!role) {
+/**
+ * Returns the agentId to filter by. Returns null for admin/team (see everything).
+ * Returns the agentId for "agent" role.
+ */
+export function getAgentFilter(req: Request): number | null {
+  const session = getSessionData(req);
+  if (session?.role === "agent" && session.agentId) return session.agentId;
+  return null;
+}
+
+// ── Middleware ────────────────────────────────────────────────────────────────
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.path.startsWith("/chatguru/webhook") && req.method === "POST") {
+    next(); return;
+  }
+  if (req.path.startsWith("/auth/")) {
+    next(); return;
+  }
+  const session = getSessionData(req);
+  if (!session) {
     res.status(401).json({ error: "Não autenticado" });
     return;
   }
-  (req as Request & { userRole: UserRole }).userRole = role;
+  (req as Request & { userSession: SessionData }).userSession = session;
   next();
 }
 
-export function validateCredentials(
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const session = getSessionData(req);
+  if (session?.role !== "admin") {
+    res.status(403).json({ error: "Acesso restrito ao administrador" });
+    return;
+  }
+  next();
+}
+
+// ── Legacy env-var credential check (fallback for admin login) ────────────────
+export function validateCredentialsEnv(
   username: string,
-  password: string
-): UserRole | null {
-  const adminUser = getEnv("ADMIN_USER", "eduardo");
-  // ADMIN_PASSWORD (env var) takes priority over ADMIN_PASS (secret)
-  const adminPass = process.env["ADMIN_PASSWORD"] ?? getEnv("ADMIN_PASS");
-  const teamUser = getEnv("TEAM_USER", "equipe");
-  // TEAM_PASSWORD (env var) takes priority over TEAM_PASS (secret)
-  const teamPass = process.env["TEAM_PASSWORD"] ?? getEnv("TEAM_PASS");
-  if (username === adminUser && password === adminPass) return "admin";
-  if (username === teamUser && password === teamPass) return "team";
+  password: string,
+): { role: UserRole; username: string } | null {
+  try {
+    const adminUser = getEnv("ADMIN_USER", "eduardo");
+    const adminPass = process.env["ADMIN_PASSWORD"] ?? getEnv("ADMIN_PASS");
+    if (username === adminUser && password === adminPass) {
+      return { role: "admin", username: adminUser };
+    }
+  } catch {}
+  try {
+    const teamUser = getEnv("TEAM_USER", "equipe");
+    const teamPass = process.env["TEAM_PASSWORD"] ?? getEnv("TEAM_PASS");
+    if (username === teamUser && password === teamPass) {
+      return { role: "team", username: teamUser };
+    }
+  } catch {}
   return null;
 }

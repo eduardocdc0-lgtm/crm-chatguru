@@ -49,12 +49,12 @@ function ProtectedRoute({
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    if (adminOnly && role === "team") {
+    if (adminOnly && role !== "admin") {
       navigate("/");
     }
   }, [role, adminOnly, navigate]);
 
-  if (adminOnly && role === "team") return null;
+  if (adminOnly && role !== "admin") return null;
   return <Component />;
 }
 
@@ -97,11 +97,12 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/reengagement" component={Reengagement} />
-        <Route path="/check" component={CheckStatus} />
-        {/* Admin-only routes */}
-        <Route path="/summaries">
-          <ProtectedRoute component={Summaries} adminOnly />
+        <Route path="/check">
+          <ProtectedRoute component={CheckStatus} adminOnly />
         </Route>
+        {/* Atendentes podem ver resumos */}
+        <Route path="/summaries" component={Summaries} />
+        {/* Admin-only routes */}
         <Route path="/traffic">
           <ProtectedRoute component={TrafficPerformance} adminOnly />
         </Route>

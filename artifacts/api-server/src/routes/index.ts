@@ -13,7 +13,7 @@ import authRouter from "./auth";
 import messagesRouter from "./messages";
 import processosRouter from "./processos";
 import advboxRouter from "./advbox";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireAdmin } from "../lib/auth";
 
 const router: IRouter = Router();
 
@@ -48,8 +48,8 @@ router.use("/conversations", conversationsExtraRouter);
 router.use("/conversations", messagesRouter);
 router.use("/summaries", summariesRouter);
 router.use("/campaigns", campaignsRouter);
-router.use("/meta-ads", metaAdsRouter);
-router.use("/audit", auditRouter);
+router.use("/meta-ads", requireAdmin, metaAdsRouter);
+router.use("/audit", requireAdmin, auditRouter);
 router.use("/processos", processosRouter);
 router.use("/advbox", advboxRouter);
 

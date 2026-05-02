@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db, conversationsTable, webhookEventsTable, whatsappNumbersTable, agentsTable, statusHistoryTable } from "@workspace/db";
-import { eq, desc, count, and, or, isNull, sql, gte, lt, asc } from "drizzle-orm";
+import { eq, desc, count, sum, and, or, isNull, sql, gte, lt, asc } from "drizzle-orm";
 import {
   ChatguruWebhookBody,
   ListConversationsQueryParams,
@@ -12,6 +12,7 @@ import { detectDisease } from "../lib/disease";
 import { detectarQualificacao } from "../lib/qualification";
 import { buscarOuCriarPessoa, criarCaso } from "../lib/advbox";
 import { processosTable } from "@workspace/db";
+import { getAgentFilter, getSessionData, requireAdmin } from "../lib/auth";
 
 const router = Router();
 
@@ -463,6 +464,9 @@ router.get("/conversations", async (req: Request, res: Response) => {
   const { status, search, campaign, disease, limit = 50, offset = 0 } = parsed.success ? parsed.data : { status: undefined, search: undefined, campaign: undefined, disease: undefined, limit: 50, offset: 0 };
 
   const conditions = [];
+  // Agent isolation filter
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter) conditions.push(eq(conversationsTable.agentId, agentIdFilter));
   // Origem filter
   const waIdParam = req.query.whatsappNumberId;
   if (waIdParam) conditions.push(eq(conversationsTable.whatsappNumberId, Number(waIdParam)));
@@ -505,18 +509,27 @@ router.get("/stats", async (req: Request, res: Response) => {
   const waIdParam = req.query.whatsappNumberId;
   const waIdFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
 
+  // Agent isolation filter
+  const agentIdFilter = getAgentFilter(req);
+  const agentFilter = agentIdFilter ? eq(conversationsTable.agentId, agentIdFilter) : undefined;
+
+  function baseFilter(...extra: (ReturnType<typeof eq> | undefined)[]) {
+    const filters = [waIdFilter, agentFilter, ...extra].filter(Boolean) as Parameters<typeof and>;
+    return filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters);
+  }
+
   const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts, [{ qualifiedCount }]] = await Promise.all([
     db.select({ status: conversationsTable.status, count: count() })
-      .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.status),
+      .from(conversationsTable).where(baseFilter()).groupBy(conversationsTable.status),
     db.select({ todayTotal: count() })
-      .from(conversationsTable).where(waIdFilter ? and(gte(conversationsTable.createdAt, today), waIdFilter) : gte(conversationsTable.createdAt, today)),
+      .from(conversationsTable).where(baseFilter(gte(conversationsTable.createdAt, today))),
     db.select().from(conversationsTable)
-      .where(waIdFilter).orderBy(desc(conversationsTable.updatedAt)).limit(10),
+      .where(baseFilter()).orderBy(desc(conversationsTable.updatedAt)).limit(10),
     db.select({ campaign: conversationsTable.campaign, count: count() })
-      .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.campaign),
+      .from(conversationsTable).where(baseFilter()).groupBy(conversationsTable.campaign),
     db.select({ qualifiedCount: count() })
       .from(conversationsTable)
-      .where(waIdFilter ? and(waIdFilter, eq(conversationsTable.isQualified, true)) : eq(conversationsTable.isQualified, true)),
+      .where(baseFilter(eq(conversationsTable.isQualified, true))),
   ]);
 
   // Pipeline completo com todos os status possíveis
@@ -556,6 +569,67 @@ router.get("/stats", async (req: Request, res: Response) => {
     resolved: pipeline.contrato_assinado,
     closed: pipeline.lead_descartado,
     recentActivity,
+  });
+});
+
+// ─── MÉTRICAS COMERCIAIS (contratos/valores por atendente) ───────────────────
+router.get("/metricas-comercial", async (req: Request, res: Response) => {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  async function getMetricsForAgent(agentId: number | null) {
+    const contractWhere = agentId
+      ? and(eq(processosTable.responsavelId, agentId), gte(processosTable.createdAt, startOfMonth), lt(processosTable.createdAt, startOfNextMonth))
+      : and(gte(processosTable.createdAt, startOfMonth), lt(processosTable.createdAt, startOfNextMonth));
+
+    const qualWhere = agentId
+      ? and(eq(conversationsTable.agentId, agentId), eq(conversationsTable.isQualified, true))
+      : eq(conversationsTable.isQualified, true);
+
+    const [[contratoRow], [{ qualificados }]] = await Promise.all([
+      db.select({ contratos: count(), valorTotal: sum(processosTable.honorarioValor) })
+        .from(processosTable).where(contractWhere),
+      db.select({ qualificados: count() }).from(conversationsTable).where(qualWhere),
+    ]);
+
+    const contratos = Number(contratoRow?.contratos ?? 0);
+    const valorTotal = Number(contratoRow?.valorTotal ?? 0);
+    const totalQual = Number(qualificados);
+    return {
+      contratos,
+      valorTotal,
+      ticketMedio: contratos > 0 ? valorTotal / contratos : 0,
+      qualificados: totalQual,
+      taxaConversao: totalQual > 0 ? contratos / totalQual : 0,
+    };
+  }
+
+  const agentIdFilter = getAgentFilter(req);
+
+  if (agentIdFilter) {
+    const meusMes = await getMetricsForAgent(agentIdFilter);
+    res.json({ meusMes });
+    return;
+  }
+
+  // Admin: global + ranking por atendente
+  const [globalMetrics, agents] = await Promise.all([
+    getMetricsForAgent(null),
+    db.select({ id: agentsTable.id, name: agentsTable.name })
+      .from(agentsTable).where(eq(agentsTable.active, true)).orderBy(asc(agentsTable.id)),
+  ]);
+
+  const ranking = await Promise.all(
+    agents.map(async (ag) => {
+      const m = await getMetricsForAgent(ag.id);
+      return { agentId: ag.id, nome: ag.name, ...m };
+    })
+  );
+
+  res.json({
+    meusMes: globalMetrics,
+    ranking: ranking.sort((a, b) => b.contratos - a.contratos),
   });
 });
 

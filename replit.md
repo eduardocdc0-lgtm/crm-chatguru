@@ -34,8 +34,19 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - `artifacts/api-server` — Express API (port via PORT env var, 8080 in dev)
 - `artifacts/chatguru-monitor` — React CRM frontend
 
+## Multi-User Auth System
+
+Roles: `admin` (Eduardo), `agent` (Thiago agentId=1, Tammyres agentId=2), `team` (legacy).
+Session cookie `crm_session` = HMAC-signed base64url JSON `{ role, agentId?, username }`.
+- Admin: vê tudo, sem filtro
+- Agent: vê apenas suas próprias conversas (`agentId` = sessão)
+- Helpers: `getAgentFilter(req)` → agentId|null, `getSessionData(req)` → SessionData|null, `requireAdmin` middleware
+- Seed: `pnpm --filter @workspace/api-server run seed:users`
+- Passwords: thiago=TH1@g0_25, tammyres=T4mm@yr3s, eduardo=ADMIN_PASS env var
+
 ## Database Schema
 
+- **users** — usuários do sistema (username, passwordHash, role, agentId FK)
 - **conversations** — leads/conversations from WhatsApp (chatNumber, status, assignedAgent, agentId, whatsappNumberId, campaign, firstMessage, notes, disease, diseaseNote, coolingAlert, coolingAlertAt, **has_laudo**, **no_advogado**, **intent_resolve**, **is_qualified**)
 - **agents** — atendentes (Thiago Tavares, Tammyres = Comercial; Letícia, Marília, Alice, Cau = Atendimento)
 - **whatsapp_numbers** — números WhatsApp (Comercial 81918506470, Base 81993045260)
@@ -44,6 +55,7 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - **webhook_events** — log de webhooks recebidos do ChatGuru
 - **status_history** — histórico de mudanças de status de cada conversa
 - **daily_summaries** — resumos diários gerados às 20h (Brasília)
+- **processos** — casos jurídicos (clienteNome, status, tipo, tipoFluxo, conversationId, responsavelId FK→agents, honorarioValor)
 
 ## API Routes
 
@@ -54,8 +66,9 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - `GET /api/tags` — listar tags agrupadas por categoria
 - `POST /api/tags/sync` — sincronizar tags
 - `PATCH /api/tags/conversation/:id` — aplicar/remover tags de conversa
-- `GET /api/chatguru/conversations` — listar conversas com filtros
-- `GET /api/chatguru/stats` — estatísticas do dashboard (inclui `qualifiedCount` por `is_qualified`)
+- `GET /api/chatguru/conversations` — listar conversas com filtros (agentFilter para role=agent)
+- `GET /api/chatguru/stats` — estatísticas do dashboard (agentFilter para role=agent)
+- `GET /api/chatguru/metricas-comercial` — métricas por atendente (contratos, receita, ticket médio, conversão); admin recebe ranking
 - `POST /api/chatguru/migrate/qualificacao` — backfill de qualificação em todos os leads existentes
 - `POST /api/chatguru/webhook` — receber eventos do ChatGuru (detecta qualificação automaticamente)
 - `POST /api/chatguru/send-message` — enviar mensagem via ChatGuru API

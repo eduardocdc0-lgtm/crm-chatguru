@@ -13,6 +13,7 @@ import { getDiseaseColor, getDiseaseLabel } from "@/lib/diseaseUtils";
 import { SendTemplateButton } from "@/components/send-template-button";
 import { useOrigem, ORIGEM_WA_ID } from "@/hooks/use-origem";
 import { OrigemFilterBar, OrigemBadge } from "@/components/origem-filter";
+import { useAuth } from "@/hooks/use-auth";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 
@@ -198,9 +199,44 @@ function useEquipeAtividade() {
   return data;
 }
 
+interface MetricasComercial {
+  contratos: number;
+  valorTotal: number;
+  ticketMedio: number;
+  qualificados: number;
+  taxaConversao: number;
+}
+
+interface RankingItem extends MetricasComercial {
+  agentId: number;
+  nome: string;
+}
+
+function useMetricasComercial() {
+  const [meusMes, setMeusMes] = React.useState<MetricasComercial | null>(null);
+  const [ranking, setRanking] = React.useState<RankingItem[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const r = await fetch(`${BASE_URL}/api/chatguru/metricas-comercial`);
+        const d = await r.json();
+        setMeusMes(d.meusMes ?? null);
+        setRanking(Array.isArray(d.ranking) ? d.ranking : []);
+      } catch {} finally { setLoading(false); }
+    };
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+  return { meusMes, ranking, loading };
+}
+
 export function Dashboard() {
   const { toast } = useToast();
   const [selectedLead, setSelectedLead] = useState<number | null>(null);
+  const { role } = useAuth();
   const { origem } = useOrigem();
   const waId = ORIGEM_WA_ID[origem];
   const alertCounts = useAlertCounts(waId);
@@ -208,6 +244,7 @@ export function Dashboard() {
   const diseaseStats = useDiseaseStats(waId);
   const processosMetricas = useProcessosMetricas();
   const equipeAtividade = useEquipeAtividade();
+  const { meusMes: metComercial, ranking: metRanking, loading: metLoading } = useMetricasComercial();
 
   const isBase = origem === "base";
 
@@ -650,6 +687,110 @@ export function Dashboard() {
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MÉTRICAS COMERCIAIS DO MÊS ────────────────────────────────── */}
+      {!isBase && metComercial !== null && (
+        <div className="space-y-4">
+          {/* Cards pessoais / globais */}
+          <div className="bg-card border border-border rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">
+                {role === "admin" ? "Métricas Comerciais — Mês Atual (Geral)" : "Minhas Métricas Comerciais — Mês Atual"}
+              </h2>
+            </div>
+            {metLoading ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{metComercial.contratos}</p>
+                  <p className="text-xs text-emerald-500 mt-0.5">Contratos</p>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(metComercial.valorTotal)}
+                  </p>
+                  <p className="text-xs text-blue-500 mt-0.5">Receita Total</p>
+                </div>
+                <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-violet-600 dark:text-violet-400">
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(metComercial.ticketMedio)}
+                  </p>
+                  <p className="text-xs text-violet-500 mt-0.5">Ticket Médio</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                    {metComercial.taxaConversao > 0
+                      ? `${(metComercial.taxaConversao * 100).toFixed(1)}%`
+                      : "—"}
+                  </p>
+                  <p className="text-xs text-amber-500 mt-0.5">Conversão (qual → contrato)</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Ranking de atendentes — admin only */}
+          {role === "admin" && metRanking.length > 0 && (
+            <div className="bg-card border border-border rounded-xl p-5">
+              <h2 className="text-sm font-semibold mb-3">Ranking Comercial — Atendentes (Mês)</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
+                      <th className="text-left pb-2 font-medium">Atendente</th>
+                      <th className="text-center pb-2 font-medium">Contratos</th>
+                      <th className="text-center pb-2 font-medium">Receita</th>
+                      <th className="text-center pb-2 font-medium">Ticket Médio</th>
+                      <th className="text-center pb-2 font-medium">Qualificados</th>
+                      <th className="text-center pb-2 font-medium">Conversão</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {metRanking.map((ag, i) => (
+                      <tr key={ag.agentId} className="hover:bg-muted/20 transition-colors">
+                        <td className="py-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-muted-foreground w-4">{i + 1}º</span>
+                            <div
+                              className="w-7 h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0"
+                              style={{ background: avatarColor(ag.nome) }}
+                            >
+                              {ag.nome.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+                            </div>
+                            <span className="font-medium">{ag.nome}</span>
+                          </div>
+                        </td>
+                        <td className="text-center py-2.5">
+                          <span className={`font-bold ${ag.contratos > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                            {ag.contratos}
+                          </span>
+                        </td>
+                        <td className="text-center py-2.5 text-blue-600 dark:text-blue-400 font-medium">
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(ag.valorTotal)}
+                        </td>
+                        <td className="text-center py-2.5 text-violet-600 dark:text-violet-400 font-medium">
+                          {ag.contratos > 0
+                            ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(ag.ticketMedio)
+                            : "—"}
+                        </td>
+                        <td className="text-center py-2.5 text-muted-foreground">{ag.qualificados}</td>
+                        <td className="text-center py-2.5">
+                          <span className={ag.taxaConversao > 0 ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground"}>
+                            {ag.taxaConversao > 0 ? `${(ag.taxaConversao * 100).toFixed(1)}%` : "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

@@ -9,10 +9,12 @@ import React, {
 
 const BASE_URL = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
 
-export type UserRole = "admin" | "team";
+export type UserRole = "admin" | "agent" | "team";
 
 interface AuthState {
   role: UserRole | null;
+  agentId: number | null;
+  username: string | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
@@ -20,6 +22,8 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState>({
   role: null,
+  agentId: null,
+  username: null,
   loading: true,
   login: async () => null,
   logout: async () => {},
@@ -27,12 +31,18 @@ const AuthContext = createContext<AuthState>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<UserRole | null>(null);
+  const [agentId, setAgentId] = useState<number | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch(`${BASE_URL}/api/auth/me`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setRole(d?.role ?? null))
+      .then((d) => {
+        setRole(d?.role ?? null);
+        setAgentId(d?.agentId ?? null);
+        setUsername(d?.username ?? null);
+      })
       .catch(() => setRole(null))
       .finally(() => setLoading(false));
   }, []);
@@ -49,6 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const d = await r.json();
         if (!r.ok) return d.error ?? "Erro desconhecido";
         setRole(d.role);
+        setAgentId(d.agentId ?? null);
+        setUsername(d.username ?? null);
         return null;
       } catch {
         return "Erro de conexão";
@@ -63,10 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       credentials: "include",
     });
     setRole(null);
+    setAgentId(null);
+    setUsername(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ role, loading, login, logout }}>
+    <AuthContext.Provider value={{ role, agentId, username, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -42,7 +42,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
       { name: "Conversas", href: "/conversations", icon: MessageSquareText },
       { name: "Alertas", href: "/alerts", icon: AlertTriangle },
-      { name: "Resumos", href: "/summaries", icon: BarChart2, adminOnly: true },
+      { name: "Resumos", href: "/summaries", icon: BarChart2 },
       { name: "Qualificados", href: "/qualificados", icon: Zap, adminOnly: true },
       { name: "Reengajamento", href: "/reengagement", icon: SendHorizonal },
       { name: "Meta Ads", href: "/traffic", icon: TrendingUp, adminOnly: true },
@@ -55,7 +55,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { name: "Equipe", href: "/team", icon: Users, adminOnly: true },
       { name: "Números", href: "/numbers", icon: Smartphone, adminOnly: true },
       { name: "Tags", href: "/tags", icon: Tag, adminOnly: true },
-      { name: "Consultar Número", href: "/check", icon: Search },
+      { name: "Consultar Número", href: "/check", icon: Search, adminOnly: true },
     ],
   },
 ];

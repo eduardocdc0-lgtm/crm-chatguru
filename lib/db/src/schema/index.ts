@@ -9,3 +9,4 @@ export * from "./audiences";
 export * from "./sent_messages";
 export * from "./processos";
 export * from "./sync_logs";
+export * from "./users";

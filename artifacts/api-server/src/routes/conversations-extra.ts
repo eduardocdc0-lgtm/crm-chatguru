@@ -1,8 +1,9 @@
 import { Router, Request, Response } from "express";
-import { db, conversationsTable, statusHistoryTable, tagsTable, conversationTagsTable } from "@workspace/db";
+import { db, conversationsTable, statusHistoryTable, tagsTable, conversationTagsTable, processosTable } from "@workspace/db";
 import { eq, ilike, or, and, lt, isNotNull, desc, sql, isNull, inArray, count } from "drizzle-orm";
 import { z } from "zod";
 import { detectDisease } from "../lib/disease";
+import { getAgentFilter, getSessionData } from "../lib/auth";
 
 const router = Router();
 
@@ -16,9 +17,14 @@ router.get("/alerts/list", async (req: Request, res: Response) => {
   const waIdParam = req.query.whatsappNumberId;
   const waFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
 
+  // Agent isolation
+  const agentIdFilter = getAgentFilter(req);
+  const agentFilter = agentIdFilter ? eq(conversationsTable.agentId, agentIdFilter) : undefined;
+
   const alerts = await db.select().from(conversationsTable)
     .where(and(
       waFilter,
+      agentFilter,
       isNotNull(conversationsTable.coolingAlert),
       sql`${conversationsTable.coolingAlert} != ''`
     ))
@@ -30,8 +36,8 @@ router.get("/alerts/list", async (req: Request, res: Response) => {
     .from(conversationsTable)
     .where(and(
       waFilter,
+      agentFilter,
       or(eq(conversationsTable.status, "lead_novo"), eq(conversationsTable.status, "open")),
-      // Apenas Tráfego Pago (id=1) ou sem filtro: usar 2h. Base (id=2): usar 10min
       Number(waIdParam) === 2
         ? lt(conversationsTable.updatedAt, h10m)
         : lt(conversationsTable.updatedAt, h2),
@@ -43,6 +49,7 @@ router.get("/alerts/list", async (req: Request, res: Response) => {
         .from(conversationsTable)
         .where(and(
           eq(conversationsTable.whatsappNumberId, 2),
+          agentFilter,
           or(
             eq(conversationsTable.status, "lead_novo"),
             eq(conversationsTable.status, "lead_qualificado"),
@@ -58,6 +65,7 @@ router.get("/alerts/list", async (req: Request, res: Response) => {
     .from(conversationsTable)
     .where(and(
       waFilter,
+      agentFilter,
       or(
         eq(conversationsTable.status, "lead_qualificado"),
         eq(conversationsTable.status, "em_atendimento"),
@@ -83,6 +91,15 @@ router.get("/search", async (req: Request, res: Response) => {
   const q = String(req.query.q ?? "").trim();
   if (!q || q.length < 2) { res.json({ results: [] }); return; }
   const like = `%${q}%`;
+  const agentIdFilter = getAgentFilter(req);
+  const agentFilter = agentIdFilter ? eq(conversationsTable.agentId, agentIdFilter) : undefined;
+  const textFilter = or(
+    ilike(conversationsTable.contactName, like),
+    ilike(conversationsTable.chatNumber, like),
+    ilike(conversationsTable.firstMessage, like),
+    ilike(conversationsTable.lastMessage, like),
+  );
+  const where = agentFilter ? and(agentFilter, textFilter) : textFilter;
   const rows = await db.select({
     id: conversationsTable.id,
     chatNumber: conversationsTable.chatNumber,
@@ -95,12 +112,7 @@ router.get("/search", async (req: Request, res: Response) => {
     createdAt: conversationsTable.createdAt,
     coolingAlert: conversationsTable.coolingAlert,
   }).from(conversationsTable)
-    .where(or(
-      ilike(conversationsTable.contactName, like),
-      ilike(conversationsTable.chatNumber, like),
-      ilike(conversationsTable.firstMessage, like),
-      ilike(conversationsTable.lastMessage, like),
-    ))
+    .where(where)
     .orderBy(desc(conversationsTable.updatedAt))
     .limit(15);
   res.json({ results: rows });
@@ -121,12 +133,14 @@ router.get("/reengagement", async (req: Request, res: Response) => {
   const conditions = [
     inArray(conversationsTable.status, ALLOWED_STATUS),
     or(
-      // Lead mandou mensagem, mas faz mais de X dias
       and(isNotNull(conversationsTable.lastMessageAt), lt(conversationsTable.lastMessageAt, cutoff)),
-      // Lead nunca mandou mensagem registrada + criado há mais de X dias
       and(isNull(conversationsTable.lastMessageAt), lt(conversationsTable.createdAt, cutoff)),
     ),
   ];
+
+  // Agent isolation
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter) conditions.push(eq(conversationsTable.agentId, agentIdFilter));
 
   if (waIdParam) {
     conditions.push(eq(conversationsTable.whatsappNumberId, Number(waIdParam)));
@@ -159,6 +173,9 @@ router.get("/export", async (req: Request, res: Response) => {
   const campaign = req.query.campaign as string | undefined;
 
   const conditions = [];
+  // Agent isolation
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter) conditions.push(eq(conversationsTable.agentId, agentIdFilter));
   if (status && status !== "all") conditions.push(eq(conversationsTable.status, status));
   if (campaign && campaign !== "all") conditions.push(eq(conversationsTable.campaign, campaign));
 
@@ -236,6 +253,17 @@ router.patch("/:id", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
 
+  // Ownership check for agents
+  const session = getSessionData(req);
+  const agentIdFilter = session?.role === "agent" && session.agentId ? session.agentId : null;
+  if (agentIdFilter) {
+    const [existing] = await db.select({ agentId: conversationsTable.agentId })
+      .from(conversationsTable).where(eq(conversationsTable.id, id)).limit(1);
+    if (!existing || existing.agentId !== agentIdFilter) {
+      res.status(403).json({ ok: false, error: "Acesso negado" }); return;
+    }
+  }
+
   const parsed = z.object({
     notes: z.string().max(2000).optional(),
     status: z.string().optional(),
@@ -254,8 +282,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
   if (notes !== undefined) updateData.notes = notes;
 
   if (status) {
-    const existing = await db.select({ status: conversationsTable.status })
-      .from(conversationsTable).where(eq(conversationsTable.id, id)).limit(1);
+    const existing = await db.select({
+      status: conversationsTable.status,
+      contactName: conversationsTable.contactName,
+      campaign: conversationsTable.campaign,
+    }).from(conversationsTable).where(eq(conversationsTable.id, id)).limit(1);
+
     if (existing.length > 0 && existing[0].status !== status) {
       await db.insert(statusHistoryTable).values({
         conversationId: id,
@@ -263,6 +295,32 @@ router.patch("/:id", async (req: Request, res: Response) => {
         toStatus: status,
         changedBy: "manual",
       });
+
+      // ── Contract attribution: quando atendente fecha contrato ──────────────
+      if (status === "contrato_assinado" && session?.agentId) {
+        const existingProcesso = await db
+          .select({ id: processosTable.id, responsavelId: processosTable.responsavelId })
+          .from(processosTable)
+          .where(eq(processosTable.conversationId, id))
+          .limit(1);
+
+        if (existingProcesso.length === 0) {
+          // Cria processo vinculado ao atendente logado
+          await db.insert(processosTable).values({
+            clienteNome: existing[0].contactName ?? `Lead #${id}`,
+            status: "em_andamento",
+            tipo: existing[0].campaign ?? undefined,
+            tipoFluxo: null,
+            conversationId: id,
+            responsavelId: session.agentId,
+          });
+        } else if (!existingProcesso[0].responsavelId) {
+          // Atualiza responsável se ainda não definido
+          await db.update(processosTable)
+            .set({ responsavelId: session.agentId, updatedAt: new Date() })
+            .where(eq(processosTable.id, existingProcesso[0].id));
+        }
+      }
     }
     updateData.status = status;
   }
@@ -281,6 +339,9 @@ router.get("/qualificados", async (req: Request, res: Response) => {
 
   const conditions = [eq(conversationsTable.isQualified, true)];
   if (waFilter) conditions.push(waFilter);
+  // Agent isolation
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter) conditions.push(eq(conversationsTable.agentId, agentIdFilter));
   const where = and(...conditions);
 
   const [leads, [{ total }]] = await Promise.all([
@@ -310,6 +371,17 @@ router.get("/qualificados", async (req: Request, res: Response) => {
 router.get("/:id/history", async (req: Request, res: Response) => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
+
+  // Ownership check for agents
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter) {
+    const [conv] = await db.select({ agentId: conversationsTable.agentId })
+      .from(conversationsTable).where(eq(conversationsTable.id, id)).limit(1);
+    if (!conv || conv.agentId !== agentIdFilter) {
+      res.status(403).json({ ok: false, error: "Acesso negado" }); return;
+    }
+  }
+
   const history = await db.select().from(statusHistoryTable)
     .where(eq(statusHistoryTable.conversationId, id))
     .orderBy(desc(statusHistoryTable.createdAt));
@@ -323,6 +395,12 @@ router.get("/:id", async (req: Request, res: Response) => {
   const [conv] = await db.select().from(conversationsTable)
     .where(eq(conversationsTable.id, id)).limit(1);
   if (!conv) { res.status(404).json({ ok: false }); return; }
+
+  // Ownership check for agents
+  const agentIdFilter = getAgentFilter(req);
+  if (agentIdFilter && conv.agentId !== agentIdFilter) {
+    res.status(403).json({ ok: false, error: "Acesso negado" }); return;
+  }
 
   const history = await db.select().from(statusHistoryTable)
     .where(eq(statusHistoryTable.conversationId, id))
