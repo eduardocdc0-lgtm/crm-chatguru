@@ -1,0 +1,45 @@
+Corrige a aba Meta Ads do dashboard. Tem campanhas pausadas/inativas no Meta aparecendo como "Ativa" no dashboard.
+
+PROBLEMA:
+No endpoint /api/meta-ads, o filtro de status tá considerando "Ativa" qualquer campanha que não foi deletada. Mas no Meta tem múltiplos status: ACTIVE, PAUSED, DELETED, ARCHIVED, WITH_ISSUES.
+
+A coluna "Status" do dashboard precisa refletir o effective_status real da campanha no Meta, não só se ela existe.
+
+EXEMPLO DO BUG (campanhas que aparecem "Ativa" mas estão zeradas há dias):
+- (LEADS) AUX DOENÇA INICIAL → R$ 0,00, 0 leads, 0 impressões
+- (ENGAJAMENTO) LAUDO TEA GERAL CARPINA 80 → R$ 0,00, 0 impressões
+- (LAUDO DO SUS) LEADS RECIFE → R$ 0,00, 0 impressões
+- [LEADS] AUX ACIDENTE → R$ 0,00, 0 impressões
+
+CORREÇÃO NECESSÁRIA:
+
+1) Na chamada da API do Meta (Graph v19.0), incluir os campos:
+   - status (status configurado pelo usuário)
+   - effective_status (status real considerando ad set e ad)
+
+2) Na lógica de processamento do dashboard, mapear o status pra um label visual:
+   - ACTIVE → "Ativa" (verde)
+   - PAUSED → "Pausada" (laranja)
+   - DELETED → não exibir
+   - ARCHIVED → não exibir (ou exibir como "Arquivada" cinza, opcional)
+   - WITH_ISSUES → "Com problemas" (vermelho)
+   - DISAPPROVED → "Reprovada" (vermelho)
+
+3) O filtro padrão "Só ativas" deve mostrar SOMENTE campanhas com effective_status === "ACTIVE". Hoje tá deixando passar PAUSED também.
+
+4) Adicionar um seletor de status no topo da tabela com opções:
+   - "Só ativas" (padrão, ACTIVE)
+   - "Pausadas" (PAUSED)
+   - "Com problemas" (WITH_ISSUES, DISAPPROVED)
+   - "Todas"
+
+5) Limpar cache de Meta Ads ao fazer deploy dessa correção pra não pegar dados antigos.
+
+REGRAS:
+- NÃO QUEBRAR nada que já funciona em outras abas
+- Manter o cache de 15 min, mas adicionar header X-Cache-Status pra debug
+- Manter limit/paginação atual
+- Frontend continua em arquivo único (HTML monolítico, sem framework novo)
+
+TESTE FINAL:
+Rodar o endpoint depois de aplicar a correção e me mostrar 5 campanhas com status diferentes pra eu validar antes do merge.
