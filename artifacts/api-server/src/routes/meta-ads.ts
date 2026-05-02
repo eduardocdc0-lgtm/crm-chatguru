@@ -70,11 +70,34 @@ function getDatePreset(raw: string | undefined): string {
   return "last_30d";
 }
 
+interface AdSetOrAdItem { effective_status: string }
+
+/**
+ * Calcula o status de entrega REAL de uma campanha:
+ * - Se não for ACTIVE → retorna o effectiveStatus original (PAUSED, ARCHIVED, etc.)
+ * - Se for ACTIVE mas não tiver nenhum ad set ativo OU nenhum ad ativo → "NO_DELIVERY"
+ * - Se for ACTIVE com pelo menos 1 ad set ativo e 1 ad ativo → "ACTIVE"
+ */
+function computeDeliveryStatus(
+  effectiveStatus: string,
+  adsets: AdSetOrAdItem[],
+  ads: AdSetOrAdItem[],
+): string {
+  if (effectiveStatus !== "ACTIVE") return effectiveStatus;
+  const activeAdsets = adsets.filter(a => a.effective_status.toUpperCase() === "ACTIVE").length;
+  const activeAds   = ads.filter(a => a.effective_status.toUpperCase() === "ACTIVE").length;
+  if (activeAdsets === 0 || activeAds === 0) return "NO_DELIVERY";
+  return "ACTIVE";
+}
+
 interface CampaignData {
   id: string;
   name: string;
   status: string;
   effectiveStatus: string;
+  deliveryStatus: string;
+  adsetsAtivos: number;
+  adsAtivos: number;
   objective: string | null;
   spend: number;
   impressions: number;
@@ -146,15 +169,14 @@ router.get("/", async (req, res) => {
       cpl: summaryLeads > 0 ? summarySpend / summaryLeads : null,
     };
 
-    // Campaigns with insights + effective_status
+    // Campaigns with insights + effective_status + nested adsets/ads for real delivery check
     const campaignsRaw = await metaGet(`/${AD_ACCOUNT}/campaigns`, {
-      fields: `name,status,effective_status,objective,insights.date_preset(${datePreset}){${insightFields}}`,
+      fields: `name,status,effective_status,objective,adsets{effective_status},ads{effective_status},insights.date_preset(${datePreset}){${insightFields}}`,
       limit: "100",
     }) as { data: Array<Record<string, unknown>> };
 
     const campaigns: CampaignData[] = (campaignsRaw.data ?? [])
       .filter((c) => {
-        // Always exclude truly deleted campaigns
         const es = String(c.effective_status ?? c.status ?? "").toUpperCase();
         return es !== "DELETED";
       })
@@ -162,11 +184,26 @@ router.get("/", async (req, res) => {
         const ins = (c.insights as { data?: Array<Record<string, unknown>> } | undefined)?.data?.[0] ?? {};
         const spend = Number(ins.spend ?? 0);
         const leads = extractLeads((ins.actions ?? []) as Array<{ action_type: string; value: string }>);
+
+        const effectiveStatus = String(c.effective_status ?? c.status ?? "").toUpperCase();
+
+        // Extract adsets and ads nested data
+        const adsetsData = ((c.adsets as { data?: AdSetOrAdItem[] } | undefined)?.data ?? []);
+        const adsData    = ((c.ads    as { data?: AdSetOrAdItem[] } | undefined)?.data ?? []);
+
+        const adsetsAtivos = adsetsData.filter(a => a.effective_status.toUpperCase() === "ACTIVE").length;
+        const adsAtivos    = adsData.filter(a => a.effective_status.toUpperCase() === "ACTIVE").length;
+
+        const deliveryStatus = computeDeliveryStatus(effectiveStatus, adsetsData, adsData);
+
         return {
           id: String(c.id),
           name: String(c.name ?? ""),
           status: String(c.status ?? "").toUpperCase(),
-          effectiveStatus: String(c.effective_status ?? c.status ?? "").toUpperCase(),
+          effectiveStatus,
+          deliveryStatus,
+          adsetsAtivos,
+          adsAtivos,
           objective: c.objective != null ? String(c.objective) : null,
           spend,
           impressions: Number(ins.impressions ?? 0),

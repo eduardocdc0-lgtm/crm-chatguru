@@ -17,6 +17,9 @@ interface CampaignData {
   name: string;
   status: string;
   effectiveStatus: string;
+  deliveryStatus: string;
+  adsetsAtivos: number;
+  adsAtivos: number;
   objective: string | null;
   spend: number;
   impressions: number;
@@ -114,6 +117,7 @@ function statusLabel(s: string): { label: string; color: string } {
   switch (s.toUpperCase()) {
     case "ACTIVE":        return { label: "Ativa",          color: "text-green-600 bg-green-50 dark:bg-green-950/30" };
     case "PAUSED":        return { label: "Pausada",        color: "text-orange-600 bg-orange-50 dark:bg-orange-950/30" };
+    case "NO_DELIVERY":   return { label: "Sem entrega",    color: "text-gray-500 bg-gray-100 dark:bg-gray-800/60" };
     case "DELETED":       return { label: "Removida",       color: "text-red-500 bg-red-50" };
     case "ARCHIVED":      return { label: "Arquivada",      color: "text-gray-500 bg-gray-100 dark:bg-gray-800" };
     case "WITH_ISSUES":   return { label: "Com problemas",  color: "text-red-600 bg-red-50 dark:bg-red-950/30" };
@@ -266,7 +270,14 @@ function SettingsPanel({
                   <Star className="h-4 w-4" fill={settings.favorites.includes(c.id) ? "currentColor" : "none"} />
                 </button>
                 <span className="text-xs text-muted-foreground flex-shrink-0 w-4">
-                  {(c.effectiveStatus || c.status) === "ACTIVE" ? "🟢" : (c.effectiveStatus || c.status) === "PAUSED" ? "⏸" : (c.effectiveStatus || c.status) === "WITH_ISSUES" ? "⚠️" : "⬜"}
+                  {(() => {
+                    const ds = (c.deliveryStatus || c.effectiveStatus || c.status || "").toUpperCase();
+                    if (ds === "ACTIVE")       return "🟢";
+                    if (ds === "PAUSED")       return "⏸️";
+                    if (ds === "NO_DELIVERY")  return "⚫";
+                    if (ds === "WITH_ISSUES")  return "⚠️";
+                    return "⬜";
+                  })()}
                 </span>
                 <span className="text-xs text-foreground flex-1 min-w-0 truncate" title={c.name}>{c.name}</span>
                 <input
@@ -293,7 +304,7 @@ type StatusFilter = "active" | "paused" | "issues" | "all";
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "active",  label: "Só ativas" },
   { value: "paused",  label: "Pausadas" },
-  { value: "issues",  label: "Com problemas" },
+  { value: "issues",  label: "Sem entrega / Problemas" },
   { value: "all",     label: "Todas" },
 ];
 
@@ -347,21 +358,21 @@ export function TrafficPerformance() {
     if (!data?.campaigns) return [];
     let rows = [...data.campaigns];
 
-    // Filter by effective_status — use effectiveStatus if present, fall back to status
-    const getES = (c: CampaignData) => (c.effectiveStatus || c.status || "").toUpperCase();
+    // Filter by deliveryStatus (computed) — falls back to effectiveStatus for older responses
+    const getDS = (c: CampaignData) => (c.deliveryStatus || c.effectiveStatus || c.status || "").toUpperCase();
     switch (statusFilter) {
       case "active":
-        rows = rows.filter(c => getES(c) === "ACTIVE");
+        // "Só ativas" = entregando de verdade (ACTIVE em todos os níveis)
+        rows = rows.filter(c => getDS(c) === "ACTIVE");
         break;
       case "paused":
-        rows = rows.filter(c => getES(c) === "PAUSED");
+        rows = rows.filter(c => getDS(c) === "PAUSED");
         break;
       case "issues":
-        rows = rows.filter(c => ["WITH_ISSUES", "DISAPPROVED"].includes(getES(c)));
+        rows = rows.filter(c => ["WITH_ISSUES", "DISAPPROVED", "NO_DELIVERY"].includes(getDS(c)));
         break;
       case "all":
-        // Hide ARCHIVED in "all" view to reduce noise; they're gone for practical purposes
-        rows = rows.filter(c => getES(c) !== "ARCHIVED");
+        rows = rows.filter(c => !["ARCHIVED", "DELETED"].includes(getDS(c)));
         break;
     }
 
@@ -648,7 +659,7 @@ export function TrafficPerformance() {
                 </tr>
               ) : (
                 filteredCampaigns.map(c => {
-                  const { label, color } = statusLabel(c.effectiveStatus || c.status);
+                  const { label, color } = statusLabel(c.deliveryStatus || c.effectiveStatus || c.status);
                   const cpl = cplSemaforo(c.cpl, settings.cplGood, settings.cplBad);
                   const isFav = settings.favorites.includes(c.id);
                   const alias = settings.aliases[c.id];
@@ -669,7 +680,16 @@ export function TrafficPerformance() {
                         )}
                       </td>
                       <td className="px-3 py-3 text-center">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>{label}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}
+                          title={c.deliveryStatus === "NO_DELIVERY"
+                            ? `Ad sets ativos: ${c.adsetsAtivos ?? "?"} · Ads ativos: ${c.adsAtivos ?? "?"}`
+                            : c.deliveryStatus === "ACTIVE"
+                              ? `Ad sets ativos: ${c.adsetsAtivos ?? "?"} · Ads ativos: ${c.adsAtivos ?? "?"}`
+                              : undefined}
+                        >
+                          {label}
+                        </span>
                       </td>
                       <td className="px-3 py-3 text-right font-mono text-sm">{fmtBRL(c.spend)}</td>
                       <td className="px-3 py-3 text-right font-mono text-sm font-semibold">{fmtNum(c.leads)}</td>
