@@ -16,6 +16,7 @@ interface CampaignData {
   id: string;
   name: string;
   status: string;
+  effectiveStatus: string;
   objective: string | null;
   spend: number;
   impressions: number;
@@ -111,11 +112,14 @@ function cplSemaforo(cpl: number | null, good: number, bad: number): {
 
 function statusLabel(s: string): { label: string; color: string } {
   switch (s.toUpperCase()) {
-    case "ACTIVE":   return { label: "Ativa",    color: "text-green-600 bg-green-50 dark:bg-green-950/30" };
-    case "PAUSED":   return { label: "Pausada",  color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30" };
-    case "DELETED":  return { label: "Removida", color: "text-red-500 bg-red-50" };
-    case "ARCHIVED": return { label: "Arquivada",color: "text-gray-500 bg-gray-100" };
-    default:         return { label: s,          color: "text-gray-500 bg-gray-100" };
+    case "ACTIVE":        return { label: "Ativa",          color: "text-green-600 bg-green-50 dark:bg-green-950/30" };
+    case "PAUSED":        return { label: "Pausada",        color: "text-orange-600 bg-orange-50 dark:bg-orange-950/30" };
+    case "DELETED":       return { label: "Removida",       color: "text-red-500 bg-red-50" };
+    case "ARCHIVED":      return { label: "Arquivada",      color: "text-gray-500 bg-gray-100 dark:bg-gray-800" };
+    case "WITH_ISSUES":   return { label: "Com problemas",  color: "text-red-600 bg-red-50 dark:bg-red-950/30" };
+    case "DISAPPROVED":   return { label: "Reprovada",      color: "text-red-600 bg-red-50 dark:bg-red-950/30" };
+    case "PENDING_REVIEW":return { label: "Em revisão",     color: "text-yellow-600 bg-yellow-50 dark:bg-yellow-950/30" };
+    default:              return { label: s,                color: "text-gray-500 bg-gray-100" };
   }
 }
 
@@ -262,7 +266,7 @@ function SettingsPanel({
                   <Star className="h-4 w-4" fill={settings.favorites.includes(c.id) ? "currentColor" : "none"} />
                 </button>
                 <span className="text-xs text-muted-foreground flex-shrink-0 w-4">
-                  {c.status === "ACTIVE" ? "🟢" : "⏸"}
+                  {(c.effectiveStatus || c.status) === "ACTIVE" ? "🟢" : (c.effectiveStatus || c.status) === "PAUSED" ? "⏸" : (c.effectiveStatus || c.status) === "WITH_ISSUES" ? "⚠️" : "⬜"}
                 </span>
                 <span className="text-xs text-foreground flex-1 min-w-0 truncate" title={c.name}>{c.name}</span>
                 <input
@@ -284,6 +288,14 @@ function SettingsPanel({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 type SortCol = "name" | "spend" | "leads" | "cpl" | "clicks" | "impressions" | "ctr" | "cpm";
+type StatusFilter = "active" | "paused" | "issues" | "all";
+
+const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "active",  label: "Só ativas" },
+  { value: "paused",  label: "Pausadas" },
+  { value: "issues",  label: "Com problemas" },
+  { value: "all",     label: "Todas" },
+];
 
 export function TrafficPerformance() {
   const qc = useQueryClient();
@@ -292,7 +304,7 @@ export function TrafficPerformance() {
   const [sortCol, setSortCol] = useState<SortCol>("spend");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [showSettings, setShowSettings] = useState(false);
-  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [settings, setSettings] = useState<MetaSettings>(loadSettings);
 
   useEffect(() => { saveSettings(settings); }, [settings]);
@@ -334,7 +346,25 @@ export function TrafficPerformance() {
   const filteredCampaigns = useMemo(() => {
     if (!data?.campaigns) return [];
     let rows = [...data.campaigns];
-    if (showOnlyActive) rows = rows.filter(c => c.status === "ACTIVE");
+
+    // Filter by effective_status — use effectiveStatus if present, fall back to status
+    const getES = (c: CampaignData) => (c.effectiveStatus || c.status || "").toUpperCase();
+    switch (statusFilter) {
+      case "active":
+        rows = rows.filter(c => getES(c) === "ACTIVE");
+        break;
+      case "paused":
+        rows = rows.filter(c => getES(c) === "PAUSED");
+        break;
+      case "issues":
+        rows = rows.filter(c => ["WITH_ISSUES", "DISAPPROVED"].includes(getES(c)));
+        break;
+      case "all":
+        // Hide ARCHIVED in "all" view to reduce noise; they're gone for practical purposes
+        rows = rows.filter(c => getES(c) !== "ARCHIVED");
+        break;
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       rows = rows.filter(c => {
@@ -361,7 +391,7 @@ export function TrafficPerformance() {
       return sortDir === "desc" ? -cmp : cmp;
     });
     return rows;
-  }, [data?.campaigns, search, sortCol, sortDir, showOnlyActive, settings]);
+  }, [data?.campaigns, search, sortCol, sortDir, statusFilter, settings]);
 
   const s = data?.summary;
   const periodLabel = PERIOD_OPTIONS.find(o => o.value === datePreset)?.label ?? datePreset;
@@ -535,14 +565,27 @@ export function TrafficPerformance() {
       {/* Campaign Table */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border flex-wrap">
-          <div className="flex items-center gap-3">
-            <h2 className="font-semibold text-sm">Performance por Campanha</h2>
-            <button
-              onClick={() => setShowOnlyActive(v => !v)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${showOnlyActive ? "bg-green-100 border-green-300 text-green-700 dark:bg-green-950/40" : "border-border bg-muted/30 text-muted-foreground"}`}
-            >
-              Só ativas
-            </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="font-semibold text-sm mr-1">Performance por Campanha</h2>
+            {STATUS_FILTER_OPTIONS.map(opt => {
+              const isActive = statusFilter === opt.value;
+              let activeClass = "bg-primary text-primary-foreground border-primary";
+              if (isActive) {
+                if (opt.value === "active")  activeClass = "bg-green-100 border-green-300 text-green-700 dark:bg-green-950/40 dark:border-green-700 dark:text-green-400";
+                if (opt.value === "paused")  activeClass = "bg-orange-100 border-orange-300 text-orange-700 dark:bg-orange-950/40 dark:border-orange-700 dark:text-orange-400";
+                if (opt.value === "issues")  activeClass = "bg-red-100 border-red-300 text-red-700 dark:bg-red-950/40 dark:border-red-700 dark:text-red-400";
+                if (opt.value === "all")     activeClass = "bg-muted border-border text-foreground";
+              }
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setStatusFilter(opt.value)}
+                  className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${isActive ? activeClass : "border-border bg-muted/30 text-muted-foreground hover:bg-muted"}`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -605,7 +648,7 @@ export function TrafficPerformance() {
                 </tr>
               ) : (
                 filteredCampaigns.map(c => {
-                  const { label, color } = statusLabel(c.status);
+                  const { label, color } = statusLabel(c.effectiveStatus || c.status);
                   const cpl = cplSemaforo(c.cpl, settings.cplGood, settings.cplBad);
                   const isFav = settings.favorites.includes(c.id);
                   const alias = settings.aliases[c.id];
@@ -652,7 +695,7 @@ export function TrafficPerformance() {
           <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground flex items-center justify-between">
             <span>
               {filteredCampaigns.length} de {data?.campaigns.length ?? 0} campanhas
-              {showOnlyActive && " (só ativas)"}
+              {statusFilter !== "all" && ` · ${STATUS_FILTER_OPTIONS.find(o => o.value === statusFilter)?.label ?? ""}`}
             </span>
             <span className="text-xs text-muted-foreground">
               🟢 CPL ≤ R${settings.cplGood} · 🟡 R${settings.cplGood}–{settings.cplBad} · 🔴 ≥ R${settings.cplBad}

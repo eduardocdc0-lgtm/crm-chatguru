@@ -74,6 +74,7 @@ interface CampaignData {
   id: string;
   name: string;
   status: string;
+  effectiveStatus: string;
   objective: string | null;
   spend: number;
   impressions: number;
@@ -112,6 +113,7 @@ router.get("/", async (req, res) => {
   if (!forceRefresh) {
     const cached = getCached<AdsData>(cacheKey);
     if (cached) {
+      res.setHeader("X-Cache-Status", "HIT");
       res.json({ ...cached, fromCache: true });
       return;
     }
@@ -144,32 +146,39 @@ router.get("/", async (req, res) => {
       cpl: summaryLeads > 0 ? summarySpend / summaryLeads : null,
     };
 
-    // Campaigns with insights
+    // Campaigns with insights + effective_status
     const campaignsRaw = await metaGet(`/${AD_ACCOUNT}/campaigns`, {
-      fields: `name,status,objective,insights.date_preset(${datePreset}){${insightFields}}`,
+      fields: `name,status,effective_status,objective,insights.date_preset(${datePreset}){${insightFields}}`,
       limit: "100",
     }) as { data: Array<Record<string, unknown>> };
 
-    const campaigns: CampaignData[] = (campaignsRaw.data ?? []).map((c) => {
-      const ins = (c.insights as { data?: Array<Record<string, unknown>> } | undefined)?.data?.[0] ?? {};
-      const spend = Number(ins.spend ?? 0);
-      const leads = extractLeads((ins.actions ?? []) as Array<{ action_type: string; value: string }>);
-      return {
-        id: String(c.id),
-        name: String(c.name ?? ""),
-        status: String(c.status ?? ""),
-        objective: c.objective != null ? String(c.objective) : null,
-        spend,
-        impressions: Number(ins.impressions ?? 0),
-        reach: Number(ins.reach ?? 0),
-        clicks: Number(ins.clicks ?? 0),
-        ctr: ins.ctr != null ? Number(ins.ctr) : null,
-        cpm: ins.cpm != null ? Number(ins.cpm) : null,
-        cpc: ins.cpc != null ? Number(ins.cpc) : null,
-        leads,
-        cpl: leads > 0 ? spend / leads : null,
-      };
-    });
+    const campaigns: CampaignData[] = (campaignsRaw.data ?? [])
+      .filter((c) => {
+        // Always exclude truly deleted campaigns
+        const es = String(c.effective_status ?? c.status ?? "").toUpperCase();
+        return es !== "DELETED";
+      })
+      .map((c) => {
+        const ins = (c.insights as { data?: Array<Record<string, unknown>> } | undefined)?.data?.[0] ?? {};
+        const spend = Number(ins.spend ?? 0);
+        const leads = extractLeads((ins.actions ?? []) as Array<{ action_type: string; value: string }>);
+        return {
+          id: String(c.id),
+          name: String(c.name ?? ""),
+          status: String(c.status ?? "").toUpperCase(),
+          effectiveStatus: String(c.effective_status ?? c.status ?? "").toUpperCase(),
+          objective: c.objective != null ? String(c.objective) : null,
+          spend,
+          impressions: Number(ins.impressions ?? 0),
+          reach: Number(ins.reach ?? 0),
+          clicks: Number(ins.clicks ?? 0),
+          ctr: ins.ctr != null ? Number(ins.ctr) : null,
+          cpm: ins.cpm != null ? Number(ins.cpm) : null,
+          cpc: ins.cpc != null ? Number(ins.cpc) : null,
+          leads,
+          cpl: leads > 0 ? spend / leads : null,
+        };
+      });
 
     const result: AdsData = {
       summary,
@@ -181,6 +190,7 @@ router.get("/", async (req, res) => {
 
     setCached(cacheKey, result);
     logger.info({ campaigns: campaigns.length, datePreset }, "Meta Ads data fetched");
+    res.setHeader("X-Cache-Status", "MISS");
     res.json(result);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
