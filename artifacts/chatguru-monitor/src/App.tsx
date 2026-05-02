@@ -15,6 +15,7 @@ import { Alerts } from "@/pages/alerts";
 import { Summaries } from "@/pages/summaries";
 import { TrafficPerformance } from "@/pages/traffic-performance";
 import { AuditPage } from "@/pages/audit";
+import { Qualificados } from "@/pages/qualificados";
 import { LoginPage } from "@/pages/login";
 import NotFound from "@/pages/not-found";
 import React, { useState, useEffect, useCallback } from "react";
@@ -34,6 +35,7 @@ const ADMIN_ONLY_PATHS = [
   "/team",
   "/numbers",
   "/tags",
+  "/qualificados",
 ];
 
 function ProtectedRoute({
@@ -114,6 +116,9 @@ function Router() {
         </Route>
         <Route path="/tags">
           <ProtectedRoute component={TagsPage} adminOnly />
+        </Route>
+        <Route path="/qualificados">
+          <ProtectedRoute component={Qualificados} adminOnly />
         </Route>
         <Route component={NotFound} />
       </Switch>

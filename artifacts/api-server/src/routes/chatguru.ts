@@ -9,6 +9,7 @@ import {
 import { logger } from "../lib/logger";
 import { identifyCampaign } from "../lib/campaign";
 import { detectDisease } from "../lib/disease";
+import { detectarQualificacao } from "../lib/qualification";
 import { buscarOuCriarPessoa, criarCaso } from "../lib/advbox";
 import { processosTable } from "@workspace/db";
 
@@ -211,6 +212,14 @@ router.post("/webhook", async (req: Request, res: Response) => {
         req.log.info({ chatNumber, from: prevStatus, to: "lead_qualificado", agent: agentName }, "Auto-transition: bot→human");
       }
 
+      // Qualificação automática: detecta flags e nunca regressa (OR com existente)
+      const qualMsgs = [existing[0].firstMessage, lastMsg ?? existing[0].lastMessage];
+      const qual = detectarQualificacao(qualMsgs);
+      const newHasLaudo    = (existing[0].hasLaudo    ?? false) || qual.hasLaudo;
+      const newNoAdvogado  = (existing[0].noAdvogado  ?? false) || qual.noAdvogado;
+      const newIntentResolve = (existing[0].intentResolve ?? false) || qual.intentResolve;
+      const newIsQualified = newHasLaudo && newNoAdvogado && newIntentResolve;
+
       const prevContext = (existing[0].contextData as Record<string, unknown>) ?? {};
       await db.update(conversationsTable).set({
         contactName: contactName ?? existing[0].contactName,
@@ -221,6 +230,10 @@ router.post("/webhook", async (req: Request, res: Response) => {
         lastMessageAt: new Date(),
         whatsappNumberId: whatsappNumberId ?? existing[0].whatsappNumberId,
         contextData: hasContext ? { ...prevContext, ...contextData } : existing[0].contextData,
+        hasLaudo: newHasLaudo,
+        noAdvogado: newNoAdvogado,
+        intentResolve: newIntentResolve,
+        isQualified: newIsQualified,
         updatedAt: new Date(),
       }).where(eq(conversationsTable.chatNumber, String(chatNumber)));
 
@@ -282,6 +295,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
       const initialStatus = agentId ? "lead_qualificado" : "lead_novo";
 
       const disease = detectDisease([firstMsg]);
+      const qualNew = detectarQualificacao([firstMsg]);
 
       await db.insert(conversationsTable).values({
         chatNumber: String(chatNumber),
@@ -296,6 +310,10 @@ router.post("/webhook", async (req: Request, res: Response) => {
         firstMessage: firstMsg,
         campaign,
         disease,
+        hasLaudo: qualNew.hasLaudo,
+        noAdvogado: qualNew.noAdvogado,
+        intentResolve: qualNew.intentResolve,
+        isQualified: qualNew.isQualified,
       });
 
       req.log.info({ chatNumber, campaign, agentId: finalAgentId, agentName: finalAgentName, status: initialStatus }, "New lead created");
@@ -406,6 +424,40 @@ router.post("/migrate/agents", async (req: Request, res: Response) => {
   }
 });
 
+// ─── MIGRATE: qualificar leads retroativamente (backfill) ────────────────────
+router.post("/migrate/qualificacao", async (req: Request, res: Response) => {
+  try {
+    const leads = await db.select({
+      id: conversationsTable.id,
+      firstMessage: conversationsTable.firstMessage,
+      lastMessage: conversationsTable.lastMessage,
+    }).from(conversationsTable);
+
+    let updated = 0;
+    let qualified = 0;
+
+    for (const lead of leads) {
+      const qual = detectarQualificacao([lead.firstMessage, lead.lastMessage]);
+      await db.update(conversationsTable)
+        .set({
+          hasLaudo: qual.hasLaudo,
+          noAdvogado: qual.noAdvogado,
+          intentResolve: qual.intentResolve,
+          isQualified: qual.isQualified,
+          updatedAt: new Date(),
+        })
+        .where(eq(conversationsTable.id, lead.id));
+      updated++;
+      if (qual.isQualified) qualified++;
+    }
+
+    res.json({ ok: true, updated, qualified });
+  } catch (err) {
+    req.log.error({ err }, "Qualification backfill failed");
+    res.status(500).json({ ok: false, error: String(err) });
+  }
+});
+
 router.get("/conversations", async (req: Request, res: Response) => {
   const parsed = ListConversationsQueryParams.safeParse(req.query);
   const { status, search, campaign, disease, limit = 50, offset = 0 } = parsed.success ? parsed.data : { status: undefined, search: undefined, campaign: undefined, disease: undefined, limit: 50, offset: 0 };
@@ -453,7 +505,7 @@ router.get("/stats", async (req: Request, res: Response) => {
   const waIdParam = req.query.whatsappNumberId;
   const waIdFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
 
-  const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts] = await Promise.all([
+  const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts, [{ qualifiedCount }]] = await Promise.all([
     db.select({ status: conversationsTable.status, count: count() })
       .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.status),
     db.select({ todayTotal: count() })
@@ -462,6 +514,9 @@ router.get("/stats", async (req: Request, res: Response) => {
       .where(waIdFilter).orderBy(desc(conversationsTable.updatedAt)).limit(10),
     db.select({ campaign: conversationsTable.campaign, count: count() })
       .from(conversationsTable).where(waIdFilter).groupBy(conversationsTable.campaign),
+    db.select({ qualifiedCount: count() })
+      .from(conversationsTable)
+      .where(waIdFilter ? and(waIdFilter, eq(conversationsTable.isQualified, true)) : eq(conversationsTable.isQualified, true)),
   ]);
 
   // Pipeline completo com todos os status possíveis
@@ -491,6 +546,7 @@ router.get("/stats", async (req: Request, res: Response) => {
   res.json({
     total,
     todayTotal: Number(todayTotal),
+    qualifiedCount: Number(qualifiedCount),
     pipeline,
     byCampaign,
     // legado

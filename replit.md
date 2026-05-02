@@ -36,7 +36,7 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 
 ## Database Schema
 
-- **conversations** — leads/conversations from WhatsApp (chatNumber, status, assignedAgent, agentId, whatsappNumberId, campaign, firstMessage, notes, disease, diseaseNote, coolingAlert, coolingAlertAt)
+- **conversations** — leads/conversations from WhatsApp (chatNumber, status, assignedAgent, agentId, whatsappNumberId, campaign, firstMessage, notes, disease, diseaseNote, coolingAlert, coolingAlertAt, **has_laudo**, **no_advogado**, **intent_resolve**, **is_qualified**)
 - **agents** — atendentes (Thiago Tavares, Tammyres = Comercial; Letícia, Marília, Alice, Cau = Atendimento)
 - **whatsapp_numbers** — números WhatsApp (Comercial 81918506470, Base 81993045260)
 - **tags** — classificação de leads em 5 categorias (ORIGEM, SETOR, STATUS, CASO, MOTIVO_DESCARTE)
@@ -55,8 +55,9 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - `POST /api/tags/sync` — sincronizar tags
 - `PATCH /api/tags/conversation/:id` — aplicar/remover tags de conversa
 - `GET /api/chatguru/conversations` — listar conversas com filtros
-- `GET /api/chatguru/stats` — estatísticas do dashboard
-- `POST /api/chatguru/webhook` — receber eventos do ChatGuru
+- `GET /api/chatguru/stats` — estatísticas do dashboard (inclui `qualifiedCount` por `is_qualified`)
+- `POST /api/chatguru/migrate/qualificacao` — backfill de qualificação em todos os leads existentes
+- `POST /api/chatguru/webhook` — receber eventos do ChatGuru (detecta qualificação automaticamente)
 - `POST /api/chatguru/send-message` — enviar mensagem via ChatGuru API
 - `GET/POST /api/chatguru/check-status` — consultar status de número
 
@@ -66,6 +67,7 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - `GET /api/conversations/alerts/list` — leads urgentes e esfriando
 - `GET /api/conversations/:id` — ficha completa do lead + histórico
 - `PATCH /api/conversations/:id` — atualizar notas/status/agente
+- `GET /api/conversations/qualificados` — lista leads com is_qualified=true com flags individuais
 - `GET /api/conversations/:id/history` — histórico de status
 - `GET /api/summaries` — listar resumos diários (últimos 30)
 - `GET /api/summaries/latest` — resumo mais recente
@@ -82,6 +84,7 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 - `/numbers` — Números de WhatsApp com contagem de leads
 - `/tags` — Tags categorizadas com uso
 - `/check` — Consultar status de número no ChatGuru
+- `/qualificados` — Lista de leads qualificados por IA (admin only) com ícones dos 3 critérios e link ChatGuru
 
 ## Frontend Components (Onda 2)
 
@@ -98,6 +101,16 @@ pnpm workspace monorepo using TypeScript. CRM dashboard for Eduardo Rodrigues Ad
 
 - **ChatGuru API**: `https://app.zap.guru/api/v1` (CHATGURU_API_KEY, CHATGURU_ACCOUNT_ID, CHATGURU_PHONE_ID)
 - Webhook configurado para receber eventos de conversa
+
+## Lead Qualification (is_qualified)
+
+`artifacts/api-server/src/lib/qualification.ts` — detecção automática de 3 flags booleanas nas mensagens do lead:
+- `has_laudo`: lead confirma ter laudo/exame/atestado (padrões positivos vs negativos)
+- `no_advogado`: lead confirma NÃO ter advogado (padrões positivos vs negativos)
+- `intent_resolve`: lead demonstra intenção de avançar (quero resolver, quero entrar com, como funciona, etc.)
+- `is_qualified = has_laudo AND no_advogado AND intent_resolve`
+
+Flags são detectadas a cada webhook recebido e nunca regridem (OR com valor existente). Card "Lead Qualificado" no dashboard usa `qualifiedCount` (contagem de `is_qualified=true`), separado do status-pipeline histórico.
 
 ## Campaign Identification
 

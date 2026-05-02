@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, jsonb, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { agentsTable } from "./agents";
@@ -24,6 +24,11 @@ export const conversationsTable = pgTable("conversations", {
   diseaseNote: text("disease_note"), // texto livre quando disease = "OUTRA"
   coolingAlert: text("cooling_alert"), // null | "esfriando" | "urgente"
   coolingAlertAt: timestamp("cooling_alert_at"),
+  // Qualificação automática de leads (detecção por palavras-chave nas mensagens)
+  hasLaudo: boolean("has_laudo").notNull().default(false),
+  noAdvogado: boolean("no_advogado").notNull().default(false),
+  intentResolve: boolean("intent_resolve").notNull().default(false),
+  isQualified: boolean("is_qualified").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

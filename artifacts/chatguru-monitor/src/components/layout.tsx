@@ -16,6 +16,7 @@ import {
   TrendingUp,
   ShieldAlert,
   LogOut,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
@@ -42,6 +43,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { name: "Conversas", href: "/conversations", icon: MessageSquareText },
       { name: "Alertas", href: "/alerts", icon: AlertTriangle },
       { name: "Resumos", href: "/summaries", icon: BarChart2, adminOnly: true },
+      { name: "Qualificados", href: "/qualificados", icon: Zap, adminOnly: true },
       { name: "Reengajamento", href: "/reengagement", icon: SendHorizonal },
       { name: "Meta Ads", href: "/traffic", icon: TrendingUp, adminOnly: true },
     ],

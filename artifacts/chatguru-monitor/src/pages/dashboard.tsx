@@ -242,7 +242,7 @@ export function Dashboard() {
   const statCards = [
     { label: "Total Hoje",       value: stats?.todayTotal ?? 0,        icon: "👥", bg: "#eff6ff", border: "#bfdbfe", valColor: "#1d4ed8" },
     { label: "Lead Novo",        value: p?.lead_novo ?? 0,             icon: "🔔", bg: "#f8fafc", border: "#e2e8f0", valColor: "#475569" },
-    { label: "Lead Qualificado", value: p?.lead_qualificado ?? 0,      icon: "⚡", bg: "#eff6ff", border: "#bfdbfe", valColor: "#1d4ed8" },
+    { label: "Lead Qualificado", value: stats?.qualifiedCount ?? 0,    icon: "⚡", bg: "#eff6ff", border: "#bfdbfe", valColor: "#1d4ed8", link: "/qualificados" },
     { label: "Em Atendimento",   value: p?.em_atendimento ?? 0,        icon: "💬", bg: "#ecfeff", border: "#a5f3fc", valColor: "#0e7490" },
     { label: "Contratos",        value: p?.contrato_assinado ?? 0,     icon: "✅", bg: "#f0fdf4", border: "#bbf7d0", valColor: "#065f46" },
     { label: "Descartados",      value: p?.lead_descartado ?? 0,       icon: "🗑️", bg: "#fef2f2", border: "#fecaca", valColor: "#991b1b" },
@@ -386,15 +386,21 @@ export function Dashboard() {
           ? Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="rounded-xl border p-5 space-y-2 shadow-sm"><Skeleton className="h-3 w-20" /><Skeleton className="h-8 w-12" /></div>
             ))
-          : statCards.map((c) => (
-              <div key={c.label} style={{ background: c.bg, border: `1px solid ${c.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                <div className="flex justify-between items-start mb-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground leading-tight">{c.label}</span>
-                  <span className="text-xl leading-none">{c.icon}</span>
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 800, color: c.valColor, lineHeight: 1, letterSpacing: "-0.02em" }}>{c.value}</div>
-              </div>
-            ))}
+          : statCards.map((c) => {
+              const cardStyle = { background: c.bg, border: `1px solid ${c.border}`, borderRadius: 14, padding: "16px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" };
+              const inner = (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground leading-tight">{c.label}</span>
+                    <span className="text-xl leading-none">{c.icon}</span>
+                  </div>
+                  <div style={{ fontSize: 32, fontWeight: 800, color: c.valColor, lineHeight: 1, letterSpacing: "-0.02em" }}>{c.value}</div>
+                </>
+              );
+              return (c as any).link
+                ? <a key={c.label} href={(c as any).link} style={{ ...cardStyle, display: "block", textDecoration: "none", cursor: "pointer" }} className="hover:opacity-80 transition-opacity">{inner}</a>
+                : <div key={c.label} style={cardStyle}>{inner}</div>;
+            })}
       </div>
       )}
 

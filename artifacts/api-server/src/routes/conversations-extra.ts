@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { db, conversationsTable, statusHistoryTable, tagsTable, conversationTagsTable } from "@workspace/db";
-import { eq, ilike, or, and, lt, isNotNull, desc, sql, isNull, inArray } from "drizzle-orm";
+import { eq, ilike, or, and, lt, isNotNull, desc, sql, isNull, inArray, count } from "drizzle-orm";
 import { z } from "zod";
 import { detectDisease } from "../lib/disease";
 
@@ -272,6 +272,38 @@ router.patch("/:id", async (req: Request, res: Response) => {
     .where(eq(conversationsTable.id, id))
     .returning();
   res.json({ ok: true, conversation: conv });
+});
+
+// ─── QUALIFICADOS: lista leads com is_qualified = true ───────────────────────
+router.get("/qualificados", async (req: Request, res: Response) => {
+  const waIdParam = req.query.whatsappNumberId;
+  const waFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
+
+  const conditions = [eq(conversationsTable.isQualified, true)];
+  if (waFilter) conditions.push(waFilter);
+  const where = and(...conditions);
+
+  const [leads, [{ total }]] = await Promise.all([
+    db.select({
+      id: conversationsTable.id,
+      chatNumber: conversationsTable.chatNumber,
+      contactName: conversationsTable.contactName,
+      status: conversationsTable.status,
+      campaign: conversationsTable.campaign,
+      hasLaudo: conversationsTable.hasLaudo,
+      noAdvogado: conversationsTable.noAdvogado,
+      intentResolve: conversationsTable.intentResolve,
+      createdAt: conversationsTable.createdAt,
+      lastMessageAt: conversationsTable.lastMessageAt,
+      whatsappNumberId: conversationsTable.whatsappNumberId,
+    }).from(conversationsTable)
+      .where(where)
+      .orderBy(desc(conversationsTable.createdAt))
+      .limit(200),
+    db.select({ total: count() }).from(conversationsTable).where(where),
+  ]);
+
+  res.json({ leads, total: Number(total) });
 });
 
 // ─── STATUS HISTORY ───────────────────────────────────────────────────────────
