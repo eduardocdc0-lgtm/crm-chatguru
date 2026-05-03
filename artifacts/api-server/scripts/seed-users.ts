@@ -54,23 +54,21 @@ async function main() {
     await upsertUser({ username: adminUser, password: adminPass, role: "admin" });
   }
 
-  await upsertUser({
-    username: "thiago",
-    password: "TH1@g0_25",
-    role: "agent",
-    agentId: 1,
-  });
+  const thiagoPass = process.env.SEED_PASSWORD_THIAGO;
+  const tammyresPass = process.env.SEED_PASSWORD_TAMMYRES;
 
-  await upsertUser({
-    username: "tammyres",
-    password: "T4mm@yr3s",
-    role: "agent",
-    agentId: 2,
-  });
+  if (!thiagoPass) {
+    console.error("SEED_PASSWORD_THIAGO env var não encontrada — thiago não será criado.");
+  } else {
+    await upsertUser({ username: "thiago", password: thiagoPass, role: "agent", agentId: 1 });
+  }
 
-  console.log("\nSenhas dos atendentes:");
-  console.log("  thiago   → TH1@g0_25");
-  console.log("  tammyres → T4mm@yr3s");
+  if (!tammyresPass) {
+    console.error("SEED_PASSWORD_TAMMYRES env var não encontrada — tammyres não será criado.");
+  } else {
+    await upsertUser({ username: "tammyres", password: tammyresPass, role: "agent", agentId: 2 });
+  }
+
   console.log("\nPronto!");
   process.exit(0);
 }

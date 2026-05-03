@@ -42,7 +42,7 @@ Session cookie `crm_session` = HMAC-signed base64url JSON `{ role, agentId?, use
 - Agent: vê apenas suas próprias conversas (`agentId` = sessão)
 - Helpers: `getAgentFilter(req)` → agentId|null, `getSessionData(req)` → SessionData|null, `requireAdmin` middleware
 - Seed: `pnpm --filter @workspace/api-server run seed:users`
-- Passwords: thiago=TH1@g0_25, tammyres=T4mm@yr3s, eduardo=ADMIN_PASS env var
+- Passwords: via Replit Secrets (ADMIN_PASSWORD, SEED_PASSWORD_THIAGO, SEED_PASSWORD_TAMMYRES)
 
 ## Database Schema
 
