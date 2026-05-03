@@ -1,0 +1,99 @@
+Tem dois bugs em production que precisam ser resolvidos hoje. Vou ser direto.
+
+═══════════════════════════════════════════════════
+BUG 1 — Página /qualificados retorna 0 leads
+═══════════════════════════════════════════════════
+
+Sintoma: o Funil de Leads no Dashboard mostra 273 leads em "Lead Qualificado". 
+A página /qualificados mostra "Nenhum lead qualificado encontrado ainda".
+
+Isso é incoerência grave. Os números têm que bater.
+
+Diagnóstico esperado:
+- A regra de qualificação ("tem laudo + sem advogado + quer resolver") só roda 
+  em mensagens NOVAS que entram via webhook. Os 273 leads históricos nunca 
+  foram processados.
+- OU a página /qualificados está usando um filtro diferente do que classifica 
+  o lead como "Qualificado" no funil.
+
+O que fazer:
+
+1. Investigar e ME RESPONDER (antes de codar):
+   - Onde está a regra que define se um lead é Qualificado?
+   - Ela roda só no webhook de mensagem nova, ou tem job/endpoint que processa 
+     histórico?
+   - Os 273 que aparecem no funil estão lá por que motivo? (status manual? 
+     migração antiga? regra antiga diferente?)
+   - A página /qualificados usa qual critério exato pra listar?
+
+2. Depois que eu confirmar o diagnóstico, criar um endpoint:
+   POST /api/qualified/backfill
+   
+   Que:
+   - Pega TODAS as conversations
+   - Pra cada uma, lê o histórico de mensagens
+   - Aplica a regra dos 3 critérios (tem laudo + sem advogado + quer resolver)
+   - Marca como qualificado quem bater os 3
+   - Retorna no JSON: { processed, qualified, skipped, errors }
+
+3. Rodar contra PRODUCTION (não dev — já caímos nessa antes).
+
+4. Confirmar que /qualificados e o funil mostram o mesmo número.
+
+═══════════════════════════════════════════════════
+BUG 2 — Página /summaries com NaN em todas as linhas
+═══════════════════════════════════════════════════
+
+Sintoma: a aba Resumos mostra:
+- Card "Conversas: NaN"
+- Coluna "Conversas" com NaN em TODAS as campanhas
+- Coluna "CPL" toda com travessão
+
+Mas a página /traffic (Meta Ads) puxa os MESMOS dados e mostra tudo certo:
+- AUX DOENÇA INICIAL: 168 leads, CPL R$ 2,41
+- BPC_BR: 23 leads, CPL R$ 4,10
+- etc.
+
+Quer dizer: o dado existe na API. A página /summaries tá quebrada na 
+hora de consumir.
+
+Causa provável:
+- /summaries está dividindo gasto por undefined → NaN
+- OU está lendo um campo de "conversas" que não existe no payload e 
+  tentando dividir
+- OU o agregador de conversas não está sendo chamado antes do render
+
+O que fazer:
+
+1. Abrir a página /summaries no browser, abrir DevTools → Network, 
+   identificar qual endpoint ela chama.
+
+2. Comparar com o endpoint que /traffic chama. Se forem o mesmo, o 
+   problema é no FRONT (a página /summaries não está pegando o campo 
+   certo). Se forem diferentes, o endpoint de /summaries não está 
+   agregando conversas.
+
+3. Corrigir e me mostrar antes/depois com print.
+
+═══════════════════════════════════════════════════
+REGRAS QUE NÃO QUERO TER QUE REPETIR
+═══════════════════════════════════════════════════
+
+1. NÃO rode nada em DEV achando que é production. Use sempre a URL 
+   pública guru-api-hub.replit.app pros endpoints de migração/backfill.
+
+2. NÃO toque em nada fora do escopo desses dois bugs. Não "aproveita 
+   pra refatorar". Não muda layout. Não troca biblioteca.
+
+3. NÃO me devolva "implementado!" sem ter testado. Quero ver:
+   - Print do /qualificados com leads aparecendo
+   - Print do /summaries sem NaN
+   - JSON de retorno do backfill
+
+4. Antes de codar o BUG 1, me responde o diagnóstico (item 1.1). 
+   Não quero código antes de a gente concordar no que está errado.
+
+5. Se em qualquer ponto você encontrar algo que não bate com o que 
+   estou descrevendo, PARA e me avisa. Não improvisa.
+
+Pode começar pelo diagnóstico do BUG 1.
