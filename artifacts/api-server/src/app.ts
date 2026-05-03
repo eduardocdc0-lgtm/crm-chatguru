@@ -26,7 +26,16 @@ app.use(
     },
   }),
 );
-app.use(cors({ credentials: true, origin: true }));
+// Sessões via cookie usam same-origin (iframe do Replit).
+// Clientes externos autenticam via X-Api-Key — credentials:false + origin:* é seguro aqui.
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-Api-Key", "Authorization"],
+  exposedHeaders: ["Content-Type"],
+  credentials: false,
+  maxAge: 86400,
+}));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
