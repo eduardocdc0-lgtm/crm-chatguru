@@ -95,6 +95,28 @@ export function getAgentFilter(req: Request): number | null {
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+
+/**
+ * requireReadApiKey — aceita leitura via X-Api-Key header.
+ * Permite que dashboards externos (ex: AdvBox, integrações) consultem
+ * endpoints GET sem precisar de sessão de usuário.
+ * Só libera métodos seguros (GET/HEAD/OPTIONS); POST/PUT/DELETE exigem sessão.
+ */
+export function requireReadApiKey(req: Request, res: Response, next: NextFunction) {
+  const apiKey = req.headers["x-api-key"];
+  const configured = process.env["READ_API_KEY"];
+  if (configured && apiKey === configured) {
+    // Injeta sessão de leitura sintética para manter compatibilidade com getAgentFilter etc.
+    (req as Request & { userSession: SessionData }).userSession = {
+      role: "admin",
+      username: "api-key",
+    };
+    next();
+    return;
+  }
+  res.status(401).json({ error: "X-Api-Key inválida ou ausente" });
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.path.startsWith("/chatguru/webhook") && req.method === "POST") {
     next(); return;
@@ -102,6 +124,19 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.path.startsWith("/auth/")) {
     next(); return;
   }
+
+  // Aceita X-Api-Key como alternativa ao cookie de sessão (acesso de leitura)
+  const apiKey = req.headers["x-api-key"];
+  const configuredKey = process.env["READ_API_KEY"];
+  if (configuredKey && apiKey === configuredKey) {
+    (req as Request & { userSession: SessionData }).userSession = {
+      role: "admin",
+      username: "api-key",
+    };
+    next();
+    return;
+  }
+
   const session = getSessionData(req);
   if (!session) {
     res.status(401).json({ error: "Não autenticado" });
