@@ -77,6 +77,9 @@ export function Qualificados() {
           <p className="text-muted-foreground/60 text-xs mt-0.5">
             Critério diferente do funil — o funil mostra leads que passaram pro atendimento humano.
           </p>
+          <p className="text-muted-foreground/40 text-[11px] mt-0.5">
+            Leads históricos não aparecem aqui — a regra começou a capturar a partir de 02/05/2026.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
