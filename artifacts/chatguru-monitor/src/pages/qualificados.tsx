@@ -72,10 +72,7 @@ export function Qualificados() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Leads Qualificados</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Leads que confirmaram: têm laudo, não têm advogado e têm intenção de resolver.
-          </p>
-          <p className="text-muted-foreground/60 text-xs mt-0.5">
-            Critério diferente do funil — o funil mostra leads que passaram pro atendimento humano.
+            Leads que passaram por toda a qualificação automática do bot (confirmaram INSS, afastamento e laudo, e receberam a pergunta final sobre advogado).
           </p>
           <p className="text-muted-foreground/40 text-[11px] mt-0.5">
             Leads históricos não aparecem aqui — a regra começou a capturar a partir de 02/05/2026.

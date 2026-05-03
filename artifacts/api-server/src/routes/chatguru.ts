@@ -9,7 +9,7 @@ import {
 import { logger } from "../lib/logger";
 import { identifyCampaign } from "../lib/campaign";
 import { detectDisease } from "../lib/disease";
-import { detectarQualificacao } from "../lib/qualification";
+import { isBotQualifyingMessage } from "../lib/qualification";
 import { buscarOuCriarPessoa, criarCaso } from "../lib/advbox";
 import { processosTable } from "@workspace/db";
 import { getAgentFilter, getSessionData, requireAdmin } from "../lib/auth";
@@ -213,13 +213,13 @@ router.post("/webhook", async (req: Request, res: Response) => {
         req.log.info({ chatNumber, from: prevStatus, to: "lead_qualificado", agent: agentName }, "Auto-transition: bot→human");
       }
 
-      // Qualificação automática: detecta flags e nunca regressa (OR com existente)
-      const qualMsgs = [existing[0].firstMessage, lastMsg ?? existing[0].lastMessage];
-      const qual = detectarQualificacao(qualMsgs);
-      const newHasLaudo    = (existing[0].hasLaudo    ?? false) || qual.hasLaudo;
-      const newNoAdvogado  = (existing[0].noAdvogado  ?? false) || qual.noAdvogado;
-      const newIntentResolve = (existing[0].intentResolve ?? false) || qual.intentResolve;
-      const newIsQualified = newHasLaudo && newNoAdvogado && newIntentResolve;
+      // Qualificação automática: bot envia frase-fechamento após validar INSS + laudo + afastamento
+      // A frase "já tem advogado cuidando do caso" só aparece depois de toda a qualificação do GPT Maker.
+      const botTriggered = isBotQualifyingMessage(lastMsg);
+      const newIsQualified = (existing[0].isQualified ?? false) || botTriggered;
+      if (botTriggered) {
+        req.log.info({ chatNumber }, "Bot qualifying phrase detected → is_qualified=true");
+      }
 
       const prevContext = (existing[0].contextData as Record<string, unknown>) ?? {};
       await db.update(conversationsTable).set({
@@ -231,9 +231,6 @@ router.post("/webhook", async (req: Request, res: Response) => {
         lastMessageAt: new Date(),
         whatsappNumberId: whatsappNumberId ?? existing[0].whatsappNumberId,
         contextData: hasContext ? { ...prevContext, ...contextData } : existing[0].contextData,
-        hasLaudo: newHasLaudo,
-        noAdvogado: newNoAdvogado,
-        intentResolve: newIntentResolve,
         isQualified: newIsQualified,
         updatedAt: new Date(),
       }).where(eq(conversationsTable.chatNumber, String(chatNumber)));
