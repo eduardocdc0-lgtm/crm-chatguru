@@ -332,12 +332,12 @@ router.patch("/:id", async (req: Request, res: Response) => {
   res.json({ ok: true, conversation: conv });
 });
 
-// ─── QUALIFICADOS: lista leads com is_qualified = true ───────────────────────
+// ─── QUALIFICADOS: leads com status = 'lead_qualificado' ─────────────────────
 router.get("/qualificados", async (req: Request, res: Response) => {
   const waIdParam = req.query.whatsappNumberId;
   const waFilter = waIdParam ? eq(conversationsTable.whatsappNumberId, Number(waIdParam)) : undefined;
 
-  const conditions = [eq(conversationsTable.isQualified, true)];
+  const conditions = [eq(conversationsTable.status, "lead_qualificado")];
   if (waFilter) conditions.push(waFilter);
   // Agent isolation
   const agentIdFilter = getAgentFilter(req);
@@ -351,16 +351,13 @@ router.get("/qualificados", async (req: Request, res: Response) => {
       contactName: conversationsTable.contactName,
       status: conversationsTable.status,
       campaign: conversationsTable.campaign,
-      hasLaudo: conversationsTable.hasLaudo,
-      noAdvogado: conversationsTable.noAdvogado,
-      intentResolve: conversationsTable.intentResolve,
       createdAt: conversationsTable.createdAt,
       lastMessageAt: conversationsTable.lastMessageAt,
       whatsappNumberId: conversationsTable.whatsappNumberId,
     }).from(conversationsTable)
       .where(where)
       .orderBy(desc(conversationsTable.createdAt))
-      .limit(200),
+      .limit(500),
     db.select({ total: count() }).from(conversationsTable).where(where),
   ]);
 

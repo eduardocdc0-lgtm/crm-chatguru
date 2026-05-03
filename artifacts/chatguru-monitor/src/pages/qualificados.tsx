@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { ExternalLink, RefreshCw, FileCheck, UserX, Zap } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { getCampaign } from "@/lib/campaignColors";
@@ -15,28 +15,9 @@ interface QualLead {
   contactName: string | null;
   status: string;
   campaign: string | null;
-  hasLaudo: boolean;
-  noAdvogado: boolean;
-  intentResolve: boolean;
   createdAt: string;
   lastMessageAt: string | null;
   whatsappNumberId: number | null;
-}
-
-function FlagBadge({ active, label, icon: Icon }: { active: boolean; label: string; icon: React.ElementType }) {
-  return (
-    <span
-      title={label}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
-        active
-          ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/40 dark:border-green-800 dark:text-green-400"
-          : "bg-muted border-border text-muted-foreground opacity-40"
-      }`}
-    >
-      <Icon className="w-3 h-3" />
-      {label}
-    </span>
-  );
 }
 
 export function Qualificados() {
@@ -72,10 +53,7 @@ export function Qualificados() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Leads Qualificados</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Leads que passaram por toda a qualificação automática do bot (confirmaram INSS, afastamento e laudo, e receberam a pergunta final sobre advogado).
-          </p>
-          <p className="text-muted-foreground/40 text-[11px] mt-0.5">
-            Leads históricos não aparecem aqui — a regra começou a capturar a partir de 02/05/2026.
+            Leads que passaram pelo bot e foram aprovados pra atendimento humano.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -93,15 +71,6 @@ export function Qualificados() {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-        <span className="font-medium">Critérios:</span>
-        <FlagBadge active icon={FileCheck} label="Tem laudo" />
-        <FlagBadge active icon={UserX} label="Sem advogado" />
-        <FlagBadge active icon={Zap} label="Quer resolver" />
-        <span className="text-muted-foreground/60 ml-1">— todos 3 precisam ser ✓ para qualificar</span>
-      </div>
-
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 p-4 text-sm text-red-700 dark:text-red-400">
           Não foi possível carregar os leads qualificados.
@@ -116,7 +85,7 @@ export function Qualificados() {
               <tr className="border-b border-border bg-muted/40">
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lead</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Campanha</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Critérios</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Entrada</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ação</th>
               </tr>
@@ -127,7 +96,7 @@ export function Qualificados() {
                     <tr key={i} className="border-b border-border/50">
                       <td className="py-3 px-4"><Skeleton className="h-4 w-36" /></td>
                       <td className="py-3 px-4"><Skeleton className="h-4 w-24" /></td>
-                      <td className="py-3 px-4"><Skeleton className="h-5 w-48" /></td>
+                      <td className="py-3 px-4"><Skeleton className="h-5 w-28" /></td>
                       <td className="py-3 px-4"><Skeleton className="h-4 w-20" /></td>
                       <td className="py-3 px-4"><Skeleton className="h-7 w-16" /></td>
                     </tr>
@@ -136,8 +105,7 @@ export function Qualificados() {
                 ? (
                   <tr>
                     <td colSpan={5} className="py-12 text-center text-muted-foreground text-sm">
-                      Nenhum lead qualificado encontrado ainda.<br />
-                      <span className="text-xs opacity-60">Os leads são qualificados automaticamente quando o sistema detecta os 3 critérios nas mensagens.</span>
+                      Nenhum lead qualificado encontrado.
                     </td>
                   </tr>
                 )
@@ -164,13 +132,9 @@ export function Qualificados() {
                           </span>
                         </td>
 
-                        {/* Critérios */}
+                        {/* Status */}
                         <td className="py-3 px-4">
-                          <div className="flex gap-1.5 flex-wrap">
-                            <FlagBadge active={lead.hasLaudo} icon={FileCheck} label="Laudo" />
-                            <FlagBadge active={lead.noAdvogado} icon={UserX} label="Sem adv." />
-                            <FlagBadge active={lead.intentResolve} icon={Zap} label="Intenção" />
-                          </div>
+                          <StatusBadge status={lead.status} />
                         </td>
 
                         {/* Data */}
