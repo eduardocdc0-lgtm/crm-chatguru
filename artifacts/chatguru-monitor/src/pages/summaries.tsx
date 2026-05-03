@@ -36,7 +36,7 @@ interface CampaignMeta {
   clicks: number;
   ctr: number | null;
   cpm: number | null;
-  conversations: number;
+  leads: number;
 }
 
 interface MetaSummary {
@@ -46,7 +46,7 @@ interface MetaSummary {
   clicks: number;
   ctr: number | null;
   cpm: number | null;
-  conversations: number;
+  leads: number;
 }
 
 interface MetaAdsData {
@@ -81,8 +81,8 @@ function MetaAdsSection() {
   });
 
   const cpl =
-    data && data.summary.conversations > 0
-      ? data.summary.spend / data.summary.conversations
+    data && data.summary.leads > 0
+      ? data.summary.spend / data.summary.leads
       : null;
 
   const kpis = data
@@ -96,7 +96,7 @@ function MetaAdsSection() {
         },
         {
           label: "Conversas",
-          value: fmtNum(data.summary.conversations),
+          value: fmtNum(data.summary.leads),
           icon: MessageSquare,
           color: "text-blue-600 dark:text-blue-400",
           bg: "bg-blue-50 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900",
@@ -185,7 +185,7 @@ function MetaAdsSection() {
                       .sort((a, b) => b.spend - a.spend)
                       .map((c) => {
                         const campCpl =
-                          c.conversations > 0 ? c.spend / c.conversations : null;
+                          c.leads > 0 ? c.spend / c.leads : null;
                         return (
                           <tr key={c.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
                             <td className="px-4 py-2.5 max-w-[240px]">
@@ -204,7 +204,7 @@ function MetaAdsSection() {
                               {fmtBRL(c.spend)}
                             </td>
                             <td className="px-4 py-2.5 text-right tabular-nums">
-                              {fmtNum(c.conversations)}
+                              {fmtNum(c.leads)}
                             </td>
                             <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
                               {campCpl != null ? fmtBRL(campCpl) : "—"}

@@ -74,6 +74,9 @@ export function Qualificados() {
           <p className="text-muted-foreground text-sm mt-1">
             Leads que confirmaram: têm laudo, não têm advogado e têm intenção de resolver.
           </p>
+          <p className="text-muted-foreground/60 text-xs mt-0.5">
+            Critério diferente do funil — o funil mostra leads que passaram pro atendimento humano.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
