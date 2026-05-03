@@ -13,11 +13,14 @@ import { eq } from "drizzle-orm";
 const router = Router();
 
 const IS_PROD = process.env.NODE_ENV === "production";
+// Replit sempre serve em HTTPS — cookie precisa de Secure mesmo em dev
+const IS_HTTPS = IS_PROD || !!process.env.REPLIT_DOMAINS;
 const COOKIE_OPTS = {
   httpOnly: true,
-  secure: IS_PROD,
-  sameSite: "lax" as const,
+  secure: IS_HTTPS,
+  sameSite: IS_HTTPS ? ("none" as const) : ("lax" as const),
   maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: "/",
 };
 
 async function validateCredentialsDB(
