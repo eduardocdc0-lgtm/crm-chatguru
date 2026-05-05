@@ -8,7 +8,10 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "seed:users": "node --import tsx/esm scripts/seed-users.ts"
+    "seed:users": "node --import tsx/esm scripts/seed-users.ts",
+    "seed:agents": "node --import tsx/esm scripts/seed-agents.ts",
+    "seed:taskforce": "node --import tsx/esm scripts/seed-taskforce.ts",
+    "backfill:reengagement": "node --import tsx/esm scripts/backfill-reengagement.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

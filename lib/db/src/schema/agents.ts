@@ -8,6 +8,9 @@ export const agentsTable = pgTable("agents", {
   phone: text("phone"),
   team: text("team").notNull(), // "COMERCIAL_TRAFEGO" ou "ATENDIMENTO"
   active: boolean("active").default(true).notNull(),
+  // Identificador do agente no painel ChatGuru (email ou UUID — confirmar
+  // formato com 1 chamada de teste à API antes de popular).
+  chatguruUserId: text("chatguru_user_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

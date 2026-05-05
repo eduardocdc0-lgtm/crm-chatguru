@@ -13,6 +13,7 @@ import authRouter from "./auth";
 import messagesRouter from "./messages";
 import processosRouter from "./processos";
 import advboxRouter from "./advbox";
+import reengagementRouter from "./reengagement";
 import { requireAuth, requireAdmin } from "../lib/auth";
 
 const router: IRouter = Router();
@@ -52,5 +53,6 @@ router.use("/meta-ads", requireAdmin, metaAdsRouter);
 router.use("/audit", requireAdmin, auditRouter);
 router.use("/processos", processosRouter);
 router.use("/advbox", advboxRouter);
+router.use("/reengagement", reengagementRouter);
 
 export default router;

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { db, conversationsTable, webhookEventsTable, whatsappNumbersTable, agentsTable, statusHistoryTable } from "@workspace/db";
+import { db, conversationsTable, webhookEventsTable, whatsappNumbersTable, agentsTable, statusHistoryTable, reengagementAttemptsTable } from "@workspace/db";
 import { eq, desc, count, sum, and, or, isNull, sql, gte, lt, asc } from "drizzle-orm";
 import {
   ChatguruWebhookBody,
@@ -212,6 +212,11 @@ router.post("/webhook", async (req: Request, res: Response) => {
         req.log.info({ chatNumber, from: prevStatus, to: "lead_qualificado", agent: agentName }, "Auto-transition: bot→human");
       }
 
+      // ── Detecção de mensagem do LEAD (incoming) ─────────────────────────────
+      // Heurística: webhook sem agentName = mensagem vinda do lead, não do atendente.
+      // (Mesma lógica usada em routes/messages.ts pra montar o histórico.)
+      const isFromLead = !!lastMsg && !agentName;
+
       const prevContext = (existing[0].contextData as Record<string, unknown>) ?? {};
       await db.update(conversationsTable).set({
         contactName: contactName ?? existing[0].contactName,
@@ -220,10 +225,37 @@ router.post("/webhook", async (req: Request, res: Response) => {
         agentId: finalAgentId,
         lastMessage: lastMsg ?? existing[0].lastMessage,
         lastMessageAt: new Date(),
+        // Atualiza o "última mensagem do lead" só quando é mesmo do lead
+        ...(isFromLead ? { lastLeadMessageAt: new Date() } : {}),
         whatsappNumberId: whatsappNumberId ?? existing[0].whatsappNumberId,
         contextData: hasContext ? { ...prevContext, ...contextData } : existing[0].contextData,
         updatedAt: new Date(),
       }).where(eq(conversationsTable.chatNumber, String(chatNumber)));
+
+      // ── Marcar última tentativa de reengajamento como respondida ───────────
+      // Se o lead mandou mensagem, a tentativa pendente mais recente fica
+      // marcada como respondida. Embrulhado em try/catch — falha aqui não
+      // pode derrubar o webhook do ChatGuru.
+      if (isFromLead) {
+        try {
+          const [pending] = await db
+            .select({ id: reengagementAttemptsTable.id })
+            .from(reengagementAttemptsTable)
+            .where(and(
+              eq(reengagementAttemptsTable.conversationId, existing[0].id),
+              eq(reengagementAttemptsTable.leadResponded, false),
+            ))
+            .orderBy(desc(reengagementAttemptsTable.sentAt))
+            .limit(1);
+          if (pending) {
+            await db.update(reengagementAttemptsTable)
+              .set({ leadResponded: true, respondedAt: new Date() })
+              .where(eq(reengagementAttemptsTable.id, pending.id));
+          }
+        } catch (err) {
+          req.log.warn({ err: String(err), conversationId: existing[0].id }, "Falha ao marcar leadResponded (não crítico)");
+        }
+      }
 
       // ── Auto-sync AdvBox: lead virou contrato ─────────────────────────────
       if (newStatus === "contrato_assinado" && prevStatus !== "contrato_assinado" && process.env.ADVBOX_API_KEY) {

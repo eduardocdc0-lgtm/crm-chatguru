@@ -29,6 +29,10 @@ export const conversationsTable = pgTable("conversations", {
   noAdvogado: boolean("no_advogado").notNull().default(false),
   intentResolve: boolean("intent_resolve").notNull().default(false),
   isQualified: boolean("is_qualified").notNull().default(false),
+  // Tracking de reengajamento
+  reengagementCount: integer("reengagement_count").notNull().default(0),
+  lastReengagementAt: timestamp("last_reengagement_at"),
+  lastLeadMessageAt: timestamp("last_lead_message_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

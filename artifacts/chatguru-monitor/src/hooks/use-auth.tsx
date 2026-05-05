@@ -9,7 +9,7 @@ import React, {
 
 const BASE_URL = (import.meta.env.BASE_URL ?? "").replace(/\/$/, "");
 
-export type UserRole = "admin" | "agent" | "team";
+export type UserRole = "admin" | "agent" | "agent_taskforce" | "team";
 
 interface AuthState {
   role: UserRole | null;

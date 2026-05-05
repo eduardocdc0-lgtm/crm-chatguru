@@ -38,7 +38,7 @@ async function validateCredentialsDB(
     if (!verifyPassword(password, user.passwordHash)) return null;
 
     return {
-      role: user.role as "admin" | "agent",
+      role: user.role as SessionData["role"],
       agentId: user.agentId ?? undefined,
       username: user.username,
     };
@@ -119,8 +119,8 @@ router.post("/users", async (req: Request, res: Response) => {
     res.status(400).json({ error: "username, password e role são obrigatórios" });
     return;
   }
-  if (role !== "admin" && role !== "agent") {
-    res.status(400).json({ error: "role deve ser 'admin' ou 'agent'" });
+  if (role !== "admin" && role !== "agent" && role !== "agent_taskforce") {
+    res.status(400).json({ error: "role deve ser 'admin', 'agent' ou 'agent_taskforce'" });
     return;
   }
   const passwordHash = hashPassword(password);

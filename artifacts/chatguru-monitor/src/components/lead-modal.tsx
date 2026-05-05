@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { X, ExternalLink, Clock, Save, ChevronRight } from "lucide-react";
+import { X, ExternalLink, Clock, Save, ChevronRight, Send, ArrowRightCircle } from "lucide-react";
 import { getCampaign, CampaignTag } from "@/lib/campaignColors";
 import { StatusBadge } from "@/components/status-badge";
 import { formatPhone } from "@/lib/utils";
 import { timeAgo } from "@/lib/time";
 import { useDebounce } from "@/hooks/use-debounce";
 import { DISEASE_LABELS, DISEASE_OPTIONS, getDiseaseColor } from "@/lib/diseaseUtils";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 const BASE_URL = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
 const CHATGURU_WEB = "https://app.zap.guru";
@@ -26,6 +28,7 @@ interface ConvDetail {
   status: string;
   campaign?: string | null;
   assignedAgent?: string | null;
+  agentId?: number | null;
   firstMessage?: string | null;
   lastMessage?: string | null;
   notes?: string | null;
@@ -35,6 +38,25 @@ interface ConvDetail {
   updatedAt: string;
   lastMessageAt?: string | null;
   coolingAlert?: string | null;
+  reengagementCount?: number;
+  lastReengagementAt?: string | null;
+}
+
+interface ReengAttempt {
+  id: number;
+  conversationId: number;
+  sentAt: string;
+  sentByName: string | null;
+  messageText: string;
+  attemptNumber: number;
+  leadResponded: boolean;
+  respondedAt: string | null;
+}
+
+interface CloserAgent {
+  id: number;
+  name: string;
+  team: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -70,8 +92,11 @@ interface LeadModalProps {
 }
 
 export function LeadModal({ leadId, onClose }: LeadModalProps) {
+  const { role } = useAuth();
+  const { toast } = useToast();
   const [conv, setConv] = useState<ConvDetail | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [attempts, setAttempts] = useState<ReengAttempt[]>([]);
   const [notes, setNotes] = useState("");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [loading, setLoading] = useState(false);
@@ -81,28 +106,93 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
   const [diseaseNote, setDiseaseNote] = useState<string>("");
   const [diseaseSaving, setDiseaseSaving] = useState(false);
 
+  // Pass-to-closer state
+  const [closers, setClosers] = useState<CloserAgent[]>([]);
+  const [selectedCloser, setSelectedCloser] = useState<number | null>(null);
+  const [passing, setPassing] = useState(false);
+
+  const canReassign = role === "admin" || role === "agent_taskforce";
+
   const debouncedNotes = useDebounce(notes, 1500);
 
   const load = useCallback(async () => {
     if (!leadId) return;
     setLoading(true);
     try {
-      const r = await fetch(`${BASE_URL}/api/conversations/${leadId}`);
-      const d = await r.json();
+      const [convResp, attemptsResp] = await Promise.all([
+        fetch(`${BASE_URL}/api/conversations/${leadId}`),
+        fetch(`${BASE_URL}/api/reengagement/conversation/${leadId}/attempts`),
+      ]);
+      const d = await convResp.json();
       setConv(d.conversation);
       setHistory(d.history ?? []);
       setNotes(d.conversation?.notes ?? "");
       setDiseaseSelect(d.conversation?.disease ?? "");
       setDiseaseNote(d.conversation?.diseaseNote ?? "");
+      const a = await attemptsResp.json().catch(() => ({ attempts: [] }));
+      setAttempts(a.attempts ?? []);
     } finally {
       setLoading(false);
     }
   }, [leadId]);
 
+  // Carrega lista de closers (Thiago/Tammy) só pra quem pode reatribuir
+  useEffect(() => {
+    if (!canReassign) return;
+    fetch(`${BASE_URL}/api/agents`)
+      .then(r => r.json())
+      .then(d => {
+        const list: CloserAgent[] = (d.agents ?? []).filter(
+          (a: any) => a.team === "COMERCIAL_TRAFEGO" && a.active,
+        );
+        setClosers(list);
+        if (list.length > 0) setSelectedCloser(list[0].id);
+      })
+      .catch(() => {});
+  }, [canReassign]);
+
   useEffect(() => {
     if (leadId) load();
-    else { setConv(null); setHistory([]); setNotes(""); setDiseaseSelect(""); setDiseaseNote(""); }
+    else {
+      setConv(null);
+      setHistory([]);
+      setAttempts([]);
+      setNotes("");
+      setDiseaseSelect("");
+      setDiseaseNote("");
+    }
   }, [leadId, load]);
+
+  const passToCloser = async () => {
+    if (!leadId || !selectedCloser) return;
+    setPassing(true);
+    try {
+      const r = await fetch(`${BASE_URL}/api/reengagement/pass-to-closer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ conversationId: leadId, toAgentId: selectedCloser }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        const closerName = closers.find(c => c.id === selectedCloser)?.name ?? "atendente";
+        if (j.transfer?.skipped) {
+          toast({ title: `Lead passado pra ${closerName} no CRM, mas sync ChatGuru desligado.` });
+        } else if (j.transfer?.ok === false) {
+          toast({ title: `Passado no CRM, sync ChatGuru falhou: ${j.transfer.error}`, variant: "destructive" });
+        } else {
+          toast({ title: `Passado pra ${closerName}!` });
+        }
+        load();
+      } else {
+        toast({ title: j.error ?? "Erro ao passar", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro de rede", variant: "destructive" });
+    } finally {
+      setPassing(false);
+    }
+  };
 
   // Auto-save notes
   useEffect(() => {
@@ -321,6 +411,71 @@ export function LeadModal({ leadId, onClose }: LeadModalProps) {
                 />
                 <p className="text-xs text-muted-foreground text-right mt-1">{notes.length}/2000</p>
               </div>
+
+              {/* Tentativas de Reengajamento */}
+              {attempts.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Send className="w-3.5 h-3.5" /> Tentativas de Reengajamento ({attempts.length})
+                  </p>
+                  <div className="space-y-3">
+                    {attempts.map((a) => (
+                      <div key={a.id} className="bg-muted/30 rounded-lg p-3 border border-border">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-semibold">
+                            #{a.attemptNumber} — {new Date(a.sentAt).toLocaleString("pt-BR", { timeZone: "America/Recife" })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {a.sentByName ?? "—"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-foreground/90 mb-1.5 italic">
+                          "{a.messageText.length > 140 ? a.messageText.slice(0, 140) + "…" : a.messageText}"
+                        </p>
+                        {a.leadResponded ? (
+                          <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                            ✅ Respondeu{a.respondedAt ? ` em ${new Date(a.respondedAt).toLocaleString("pt-BR", { timeZone: "America/Recife" })}` : ""}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            ⏳ Sem resposta
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Passar pra Fechamento (admin / agent_taskforce) */}
+              {canReassign && closers.length > 0 && (
+                <div className="bg-muted/30 rounded-xl p-4 border border-border">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-2">
+                    <ArrowRightCircle className="w-3.5 h-3.5" /> Passar pra Fechamento
+                  </p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Reatribui o lead pro time comercial fechar (transfere também no ChatGuru).
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select
+                      value={selectedCloser ?? ""}
+                      onChange={e => setSelectedCloser(Number(e.target.value))}
+                      className="bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      {closers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={passToCloser}
+                      disabled={passing || !selectedCloser}
+                      className="text-xs px-3 py-2 rounded-lg btn-primary-gradient text-primary-foreground font-medium disabled:opacity-50 flex items-center gap-1.5"
+                    >
+                      {passing ? "Passando..." : <>Passar pra {closers.find(c => c.id === selectedCloser)?.name ?? "fechar"}</>}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Timeline */}
               {history.length > 0 && (

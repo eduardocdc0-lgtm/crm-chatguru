@@ -694,7 +694,8 @@ export function Dashboard() {
       )}
 
       {/* ── MÉTRICAS COMERCIAIS DO MÊS ────────────────────────────────── */}
-      {!isBase && metComercial !== null && (
+      {/* Força-tarefa não vê faturamento (escopo restrito por design) */}
+      {!isBase && role !== "agent_taskforce" && metComercial !== null && (
         <div className="space-y-4">
           {/* Cards pessoais / globais */}
           <div className="bg-card border border-border rounded-xl p-5">

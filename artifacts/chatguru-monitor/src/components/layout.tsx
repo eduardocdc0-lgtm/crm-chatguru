@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   LogOut,
   Zap,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/use-theme";
@@ -32,7 +33,8 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ElementType;
-  adminOnly?: boolean;
+  // Quem pode ver. Se ausente, todos veem.
+  allow?: ReadonlyArray<UserRole>;
 }
 
 const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
@@ -43,25 +45,35 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
       { name: "Conversas", href: "/conversations", icon: MessageSquareText },
       { name: "Alertas", href: "/alerts", icon: AlertTriangle },
       { name: "Resumos", href: "/summaries", icon: BarChart2 },
-      { name: "Qualificados", href: "/qualificados", icon: Zap, adminOnly: true },
+      { name: "Qualificados", href: "/qualificados", icon: Zap, allow: ["admin", "agent_taskforce"] },
       { name: "Reengajamento", href: "/reengagement", icon: SendHorizonal },
-      { name: "Meta Ads", href: "/traffic", icon: TrendingUp, adminOnly: true },
+      { name: "Limpeza", href: "/limpeza", icon: Trash2, allow: ["admin", "agent_taskforce"] },
+      { name: "Meta Ads", href: "/traffic", icon: TrendingUp, allow: ["admin"] },
     ],
   },
   {
     label: "Configuração",
     items: [
-      { name: "Auditoria de Anúncios", href: "/audit", icon: ShieldAlert, adminOnly: true },
-      { name: "Equipe", href: "/team", icon: Users, adminOnly: true },
-      { name: "Números", href: "/numbers", icon: Smartphone, adminOnly: true },
-      { name: "Tags", href: "/tags", icon: Tag, adminOnly: true },
-      { name: "Consultar Número", href: "/check", icon: Search, adminOnly: true },
+      { name: "Auditoria de Anúncios", href: "/audit", icon: ShieldAlert, allow: ["admin"] },
+      { name: "Equipe", href: "/team", icon: Users, allow: ["admin"] },
+      { name: "Números", href: "/numbers", icon: Smartphone, allow: ["admin"] },
+      { name: "Tags", href: "/tags", icon: Tag, allow: ["admin"] },
+      { name: "Consultar Número", href: "/check", icon: Search, allow: ["admin"] },
     ],
   },
 ];
 
 function filterItems(items: NavItem[], role: UserRole | null) {
-  return items.filter((item) => !item.adminOnly || role === "admin");
+  return items.filter((item) => !item.allow || (role && item.allow.includes(role)));
+}
+
+function roleBadge(role: UserRole | null): string {
+  switch (role) {
+    case "admin": return "admin";
+    case "agent_taskforce": return "força-tarefa";
+    case "agent": return "atendente";
+    default: return "equipe";
+  }
 }
 
 export function Layout({ children, onSearch }: LayoutProps) {
@@ -157,7 +169,7 @@ export function Layout({ children, onSearch }: LayoutProps) {
               <Bell className="w-4 h-4" />
             </button>
             <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-sidebar-accent/50 text-sidebar-foreground/60">
-              {role === "admin" ? "admin" : "equipe"}
+              {roleBadge(role)}
             </span>
           </div>
           <button
@@ -215,8 +227,12 @@ export function Layout({ children, onSearch }: LayoutProps) {
             { href: "/", icon: LayoutDashboard, label: "Home" },
             { href: "/conversations", icon: MessageSquareText, label: "Leads" },
             { href: "/alerts", icon: AlertTriangle, label: "Alertas" },
-            ...(role === "admin" ? [{ href: "/traffic", icon: TrendingUp, label: "Meta Ads" }] : [{ href: "/reengagement", icon: SendHorizonal, label: "Reeng." }]),
-            { href: "/check", icon: Search, label: "Consultar" },
+            ...(role === "admin"
+              ? [{ href: "/traffic", icon: TrendingUp, label: "Meta Ads" }]
+              : role === "agent_taskforce"
+                ? [{ href: "/limpeza", icon: Trash2, label: "Limpeza" }]
+                : [{ href: "/reengagement", icon: SendHorizonal, label: "Reeng." }]),
+            ...(role === "admin" ? [{ href: "/check", icon: Search, label: "Consultar" }] : [{ href: "/reengagement", icon: SendHorizonal, label: "Reeng." }]),
           ].map((item) => {
             const isActive =
               location === item.href ||

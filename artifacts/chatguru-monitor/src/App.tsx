@@ -8,6 +8,7 @@ import { Dashboard } from "@/pages/dashboard";
 import { Conversations } from "@/pages/conversations";
 import { CheckStatus } from "@/pages/check-status";
 import { Reengagement } from "@/pages/reengagement";
+import { Limpeza } from "@/pages/limpeza";
 import { Team } from "@/pages/team";
 import { Numbers } from "@/pages/numbers";
 import { TagsPage } from "@/pages/tags-page";
@@ -40,21 +41,20 @@ const ADMIN_ONLY_PATHS = [
 
 function ProtectedRoute({
   component: Component,
-  adminOnly,
+  allow,
 }: {
   component: React.ComponentType;
-  adminOnly?: boolean;
+  allow: ReadonlyArray<"admin" | "agent" | "agent_taskforce" | "team">;
 }) {
   const { role } = useAuth();
   const [, navigate] = useLocation();
+  const allowed = !!role && allow.includes(role);
 
   useEffect(() => {
-    if (adminOnly && role !== "admin") {
-      navigate("/");
-    }
-  }, [role, adminOnly, navigate]);
+    if (!allowed) navigate("/");
+  }, [allowed, navigate]);
 
-  if (adminOnly && role !== "admin") return null;
+  if (!allowed) return null;
   return <Component />;
 }
 
@@ -97,29 +97,34 @@ function Router() {
         <Route path="/conversations" component={Conversations} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/reengagement" component={Reengagement} />
+        {/* Limpeza: admin + força-tarefa */}
+        <Route path="/limpeza">
+          <ProtectedRoute component={Limpeza} allow={["admin", "agent_taskforce"]} />
+        </Route>
         <Route path="/check">
-          <ProtectedRoute component={CheckStatus} adminOnly />
+          <ProtectedRoute component={CheckStatus} allow={["admin"]} />
         </Route>
         {/* Atendentes podem ver resumos */}
         <Route path="/summaries" component={Summaries} />
         {/* Admin-only routes */}
         <Route path="/traffic">
-          <ProtectedRoute component={TrafficPerformance} adminOnly />
+          <ProtectedRoute component={TrafficPerformance} allow={["admin"]} />
         </Route>
         <Route path="/audit">
-          <ProtectedRoute component={AuditPage} adminOnly />
+          <ProtectedRoute component={AuditPage} allow={["admin"]} />
         </Route>
         <Route path="/team">
-          <ProtectedRoute component={Team} adminOnly />
+          <ProtectedRoute component={Team} allow={["admin"]} />
         </Route>
         <Route path="/numbers">
-          <ProtectedRoute component={Numbers} adminOnly />
+          <ProtectedRoute component={Numbers} allow={["admin"]} />
         </Route>
         <Route path="/tags">
-          <ProtectedRoute component={TagsPage} adminOnly />
+          <ProtectedRoute component={TagsPage} allow={["admin"]} />
         </Route>
+        {/* Qualificados: admin + força-tarefa (precisa pra trabalhar) */}
         <Route path="/qualificados">
-          <ProtectedRoute component={Qualificados} adminOnly />
+          <ProtectedRoute component={Qualificados} allow={["admin", "agent_taskforce"]} />
         </Route>
         <Route component={NotFound} />
       </Switch>

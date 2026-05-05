@@ -2,7 +2,13 @@ import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-export type UserRole = "admin" | "agent" | "team"; // "team" is legacy, kept for backward compat
+// "agent_taskforce" = atendimento força-tarefa (Letícia hoje):
+//   vê todos os leads (igual admin pra leitura), mas SEM faturamento, equipe, números, etc.
+//   pode disparar reengajamento de qualquer lead e "passar pra fechamento".
+// "team" é legado, mantido pra compatibilidade.
+export type UserRole = "admin" | "agent" | "agent_taskforce" | "team";
+
+const VALID_ROLES: ReadonlySet<UserRole> = new Set(["admin", "agent", "agent_taskforce", "team"]);
 
 export interface SessionData {
   role: UserRole;
@@ -55,7 +61,7 @@ function verifyAndDecode(cookie: string): SessionData | null {
     const decoded = Buffer.from(payload, "base64url").toString("utf8");
     const parsed = JSON.parse(decoded);
     const role = parsed.role;
-    if (role !== "admin" && role !== "agent" && role !== "team") return null;
+    if (!VALID_ROLES.has(role)) return null;
     return {
       role: role as UserRole,
       agentId: parsed.agentId ?? undefined,
@@ -85,13 +91,23 @@ export function getSessionRole(req: Request): UserRole | null {
 }
 
 /**
- * Returns the agentId to filter by. Returns null for admin/team (see everything).
- * Returns the agentId for "agent" role.
+ * Returns the agentId to filter by. Returns null for admin/team/agent_taskforce
+ * (eles veem tudo). Apenas "agent" (Thiago, Tammyres) é restringido aos próprios leads.
  */
 export function getAgentFilter(req: Request): number | null {
   const session = getSessionData(req);
   if (session?.role === "agent" && session.agentId) return session.agentId;
   return null;
+}
+
+/** True quando o usuário pode ler/operar sobre qualquer lead. */
+export function canSeeAllLeads(role: UserRole | null | undefined): boolean {
+  return role === "admin" || role === "team" || role === "agent_taskforce";
+}
+
+/** True quando o usuário pode reatribuir leads pra outros agentes (passar pra fechamento). */
+export function canReassign(role: UserRole | null | undefined): boolean {
+  return role === "admin" || role === "agent_taskforce";
 }
 
 // ── Middleware ────────────────────────────────────────────────────────────────
