@@ -41,9 +41,7 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
-META_AD_ACCOUNT_ID = "act_654132083965752"
 ADMIN_USER = "eduardo"
 TEAM_USER = "equipe"
-TEAM_PASSWORD = "***PASSWORD_REMOVED***"
-ADMIN_PASSWORD = "***PASSWORD_REMOVED***"
-META_TOKEN_OVERRIDE = "***META_TOKEN_REMOVED***"
+# Secrets (META_AD_ACCOUNT_ID, META_TOKEN_OVERRIDE, ADMIN_PASSWORD, TEAM_PASSWORD)
+# moved to Replit Secrets (cloud) and .env (local). Never commit them here.
