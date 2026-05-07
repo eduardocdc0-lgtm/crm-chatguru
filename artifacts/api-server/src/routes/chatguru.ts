@@ -12,6 +12,7 @@ import { detectDisease } from "../lib/disease";
 import { buscarOuCriarPessoa, criarCaso } from "../lib/advbox";
 import { processosTable } from "@workspace/db";
 import { getAgentFilter, getSessionData, requireAdmin } from "../lib/auth";
+import { startOfTodayBrasilia } from "../lib/http";
 
 const router = Router();
 
@@ -483,8 +484,7 @@ router.get("/conversations", async (req: Request, res: Response) => {
 });
 
 router.get("/stats", async (req: Request, res: Response) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = startOfTodayBrasilia();
 
   // Optional filter by whatsapp number (origem)
   const waIdParam = req.query.whatsappNumberId;
@@ -620,7 +620,7 @@ router.get("/metricas-comercial", async (req: Request, res: Response) => {
 router.get("/base-stats", async (_req: Request, res: Response) => {
   const now = Date.now();
   const h10m = new Date(now - 10 * 60 * 1000);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const today = startOfTodayBrasilia();
 
   const finalizedStatuses = ["lead_descartado", "contrato_assinado", "cliente_ativo", "cliente_procedente", "resolved", "closed"];
   const activeCondition = or(
