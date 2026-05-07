@@ -380,7 +380,7 @@ router.get("/list", async (req: Request, res: Response) => {
 // ─── GET /api/reengagement/conversation/:id/attempts ─────────────────────────
 // Histórico de tentativas de uma conversa (pra timeline no modal).
 router.get("/conversation/:id/attempts", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) {
     res.status(400).json({ ok: false });
     return;

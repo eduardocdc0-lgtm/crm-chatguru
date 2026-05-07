@@ -250,7 +250,7 @@ router.post("/disease/detect", async (_req: Request, res: Response) => {
 
 // ─── NOTES + STATUS PATCH ────────────────────────────────────────────────────
 router.patch("/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
 
   // Ownership check for agents
@@ -366,7 +366,7 @@ router.get("/qualificados", async (req: Request, res: Response) => {
 
 // ─── STATUS HISTORY ───────────────────────────────────────────────────────────
 router.get("/:id/history", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
 
   // Ownership check for agents
@@ -387,7 +387,7 @@ router.get("/:id/history", async (req: Request, res: Response) => {
 
 // ─── SINGLE CONVERSATION ─────────────────────────────────────────────────────
 router.get("/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
   const [conv] = await db.select().from(conversationsTable)
     .where(eq(conversationsTable.id, id)).limit(1);

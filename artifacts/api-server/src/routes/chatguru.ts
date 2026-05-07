@@ -495,8 +495,10 @@ router.get("/stats", async (req: Request, res: Response) => {
   const agentFilter = agentIdFilter ? eq(conversationsTable.agentId, agentIdFilter) : undefined;
 
   function baseFilter(...extra: (ReturnType<typeof eq> | undefined)[]) {
-    const filters = [waIdFilter, agentFilter, ...extra].filter(Boolean) as Parameters<typeof and>;
-    return filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters);
+    const filters = [waIdFilter, agentFilter, ...extra].filter((f): f is ReturnType<typeof eq> => Boolean(f));
+    if (filters.length === 0) return undefined;
+    if (filters.length === 1) return filters[0];
+    return and(...filters);
   }
 
   const [statusCounts, [{ todayTotal }], recentActivity, campaignCounts, [{ qualifiedCount }]] = await Promise.all([
@@ -724,7 +726,7 @@ router.post("/migrate/statuses", async (req: Request, res: Response) => {
 });
 
 router.delete("/conversations/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false, message: "ID inválido" }); return; }
   try {
     await db.delete(conversationsTable).where(eq(conversationsTable.id, id));

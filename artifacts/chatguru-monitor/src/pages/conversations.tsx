@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useListConversations, useDeleteConversation, getListConversationsQueryKey, type ListConversationsStatus } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -194,7 +194,7 @@ export function Conversations() {
     {
       query: {
         queryKey: getListConversationsQueryKey(params as any),
-        keepPreviousData: true,
+        placeholderData: keepPreviousData,
         refetchInterval: 60_000,
       },
     }

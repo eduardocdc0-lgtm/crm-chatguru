@@ -40,6 +40,7 @@ function NewBadge({ createdAt }: { createdAt?: string | null }) {
       const timeout = setTimeout(() => setVisible(false), 30 * 60 * 1000 - age);
       return () => clearTimeout(timeout);
     }
+    return;
   }, [createdAt]);
 
   if (!visible) return null;
@@ -514,7 +515,7 @@ export function Dashboard() {
             ))}</div>
           ) : stats?.recentActivity && stats.recentActivity.length > 0 ? (
             <div>
-              {stats.recentActivity.map((activity, i) => {
+              {stats.recentActivity.map((activity: any, i: number) => {
                 const name = activity.contactName || formatPhone(activity.chatNumber);
                 const meta = getCampaign((activity as any).campaign);
                 const silLvl = silenceLevel(activity.lastMessageAt || activity.updatedAt);

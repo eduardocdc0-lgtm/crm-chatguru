@@ -47,7 +47,7 @@ router.post("/", async (req: Request, res: Response) => {
 });
 
 router.patch("/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ ok: false }); return; }
   const parsed = NumPatch.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.message }); return; }

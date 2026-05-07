@@ -33,7 +33,7 @@ router.post("/sync", async (_req: Request, res: Response) => {
 
 // Aplicar/remover tags de uma conversa
 router.patch("/conversation/:conversationId", async (req: Request, res: Response) => {
-  const conversationId = parseInt(req.params.conversationId, 10);
+  const conversationId = parseInt(req.params.conversationId as string, 10);
   if (isNaN(conversationId)) { res.status(400).json({ ok: false }); return; }
 
   const parsed = z.object({

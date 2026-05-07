@@ -157,7 +157,7 @@ router.patch("/users/:id", async (req: Request, res: Response) => {
     res.status(403).json({ error: "Apenas o administrador" });
     return;
   }
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   const { password, active } = req.body as { password?: string; active?: boolean };
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (password) updates.passwordHash = hashPassword(password);

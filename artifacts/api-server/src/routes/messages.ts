@@ -122,7 +122,7 @@ router.get("/templates", (_req: Request, res: Response) => {
 
 // GET /api/conversations/:chatNumber/messages
 router.get("/:chatNumber/messages", async (req: Request, res: Response) => {
-  const { chatNumber } = req.params;
+  const chatNumber = req.params.chatNumber as string;
   if (!chatNumber) { res.status(400).json({ error: "chatNumber obrigatório" }); return; }
 
   const cached = msgCache.get(chatNumber);
@@ -166,7 +166,7 @@ router.get("/:chatNumber/messages", async (req: Request, res: Response) => {
 
 // GET /api/conversations/:chatNumber/sent — last sent message info
 router.get("/:chatNumber/sent", async (req: Request, res: Response) => {
-  const { chatNumber } = req.params;
+  const chatNumber = req.params.chatNumber as string;
   try {
     const last = await db.select()
       .from(sentMessagesTable)
@@ -204,7 +204,7 @@ router.get("/:chatNumber/sent", async (req: Request, res: Response) => {
 
 // POST /api/conversations/:chatNumber/send
 router.post("/:chatNumber/send", async (req: Request, res: Response) => {
-  const { chatNumber } = req.params;
+  const chatNumber = req.params.chatNumber as string;
   const { templateId, customMessage } = (req.body ?? {}) as { templateId?: string; customMessage?: string };
 
   if (!chatNumber) { res.status(400).json({ ok: false, error: "chatNumber obrigatório" }); return; }

@@ -103,7 +103,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
           if (numeroProcesso) updateData.numeroProcesso = numeroProcesso;
 
           await db.update(processosTable)
-            .set(updateData as Parameters<typeof processosTable.$inferInsert>[0])
+            .set(updateData as Partial<typeof processosTable.$inferInsert>)
             .where(eq(processosTable.id, processo.id));
 
           result = `processo ${processo.id} atualizado (status: ${ADVBOX_STATUS_MAP[novoStatus] ?? "inalterado"})`;

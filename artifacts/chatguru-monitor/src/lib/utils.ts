@@ -9,16 +9,11 @@ export function formatPhone(phone?: string) {
   if (!phone) return "Desconhecido";
   const cleaned = phone.replace(/\D/g, "");
   
-  if (cleaned.length === 12 || cleaned.length === 13) {
-    let ddd = cleaned.substring(cleaned.length === 12 ? 0 : 2, cleaned.length === 12 ? 2 : 4);
-    let firstPart = cleaned.substring(cleaned.length === 12 ? 2 : 4, cleaned.length === 12 ? 7 : 9);
-    let secondPart = cleaned.substring(cleaned.length === 12 ? 7 : 9);
-    
-    if (cleaned.length === 13 && cleaned.startsWith("55")) {
-      return `(${ddd}) ${firstPart}-${secondPart}`;
-    } else if (cleaned.length === 11) {
-      return `(${cleaned.substring(0,2)}) ${cleaned.substring(2,7)}-${cleaned.substring(7)}`;
-    }
+  if (cleaned.length === 13 && cleaned.startsWith("55")) {
+    const ddd = cleaned.substring(2, 4);
+    const firstPart = cleaned.substring(4, 9);
+    const secondPart = cleaned.substring(9);
+    return `(${ddd}) ${firstPart}-${secondPart}`;
   }
   
   if (cleaned.length >= 10 && cleaned.length <= 11) {

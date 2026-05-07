@@ -296,7 +296,10 @@ router.get("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, id));
-    if (!campaign) return res.status(404).json({ error: "not_found" });
+    if (!campaign) {
+      res.status(404).json({ error: "not_found" });
+      return;
+    }
 
     const metrics = await db
       .select()
