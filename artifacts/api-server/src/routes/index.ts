@@ -19,6 +19,9 @@ import { requireAuth, requireAdmin } from "../lib/auth";
 const router: IRouter = Router();
 
 // ─── Públicas (sem autenticação) ──────────────────────────────────────────────
+// Healthcheck precisa ser público para load balancers / Replit / monitoramento
+router.use(healthRouter);
+
 router.use("/auth", authRouter);
 
 // ChatGuru chama sem nosso cookie → deve ser público
@@ -40,7 +43,6 @@ router.post("/advbox/webhook", (req, res, next) => {
 // ─── Protegidas: exige sessão válida ─────────────────────────────────────────
 router.use(requireAuth);
 
-router.use(healthRouter);
 router.use("/chatguru", chatguruRouter);
 router.use("/agents", agentsRouter);
 router.use("/whatsapp-numbers", whatsappNumbersRouter);
